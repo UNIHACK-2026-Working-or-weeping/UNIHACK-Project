@@ -452,6 +452,7 @@ class MascotApp:
         self.using_teeth = False
 
         self.window = MascotWindow(str(self.default_image))
+        self.window.resize(200, 200)
         self._position_window()
 
         self.tray = self._create_tray_icon()
