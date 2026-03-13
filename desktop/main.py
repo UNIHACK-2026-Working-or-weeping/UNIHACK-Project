@@ -94,7 +94,7 @@ class MascotApp:
         self.app = app
         self.base_dir = Path(__file__).parent
         self.default_image = self.base_dir / "mascot.png"
-        self.teeth_image = self.base_dir / "mascot_teeth.png"
+        self.teeth_image = self.base_dir / "mascot_1.png"
         self.using_teeth = False
 
         self.window = MascotWindow(str(self.default_image))
