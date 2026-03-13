@@ -3,6 +3,6 @@ import { defineConfig } from "astro/config";
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://<YOUR_GITHUB_USERNAME>.github.io",
-  base: "/<YOUR_REPOSITORY_NAME>",
+  site: "https://unihack-2026-working-or-weeping.github.io",
+  base: "/UNIHACK-Project",
 });
