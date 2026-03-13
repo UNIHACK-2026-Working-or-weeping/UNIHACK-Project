@@ -1,46 +1,36 @@
-# Astro Starter Kit: Basics
+# Astro + React + TypeScript + shadcn/ui
 
-```sh
-pnpm create astro@latest -- --template basics
+This is a template for a new Astro project with React, TypeScript, and shadcn/ui.
+
+## Adding components
+
+To add components to your app, run the following command:
+
+```bash
+npx shadcn@latest add button
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+This will place the ui components in the `src/components` directory.
 
-## 🚀 Project Structure
+## Using components
 
-Inside of your Astro project, you'll see the following folders and files:
+To use the components in your app, import them in an `.astro` file:
 
-```text
-/
-├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
+```astro
+---
+import { Button } from "@/components/ui/button"
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Astro App</title>
+  </head>
+  <body>
+    <div class="grid h-screen place-items-center content-center">
+      <Button>Button</Button>
+    </div>
+  </body>
+</html>
 ```
-
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `pnpm install`             | Installs dependencies                            |
-| `pnpm dev`             | Starts local dev server at `localhost:4321`      |
-| `pnpm build`           | Build your production site to `./dist/`          |
-| `pnpm preview`         | Preview your build locally, before deploying     |
-| `pnpm astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `pnpm astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
