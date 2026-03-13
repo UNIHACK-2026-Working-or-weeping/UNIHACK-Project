@@ -1,5 +1,5 @@
 // 🔑 PASTE YOUR NEW GEMINI API KEY HERE
-const GEMINI_API_KEY = "AIzaSyAmpoVuvGPAHpiQbrRFIj68MpKvYRYWYOU";
+const GEMINI_API_KEY = "--";
 
 const PERSONALITIES = {
   sarcastic:
