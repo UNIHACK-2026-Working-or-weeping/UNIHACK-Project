@@ -10,4 +10,6 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
   integrations: [react()],
+  site: "https://unihack-2026-working-or-weeping.github.io",
+  base: "/UNIHACK-Project",
 })
