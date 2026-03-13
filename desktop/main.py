@@ -399,6 +399,9 @@ class FastAPIController:
         class SetImageRequest(BaseModel):
             image: str
 
+        class SetTeethRequest(BaseModel):
+            domain: str | None = None
+
         @self.app.get("/health")
         def health():
             return {"status": "ok"}
@@ -426,8 +429,9 @@ class FastAPIController:
             return {"ok": True, "action": "set_default"}
 
         @self.app.post("/image/teeth")
-        @self.app.get("/image/teeth")
-        def set_teeth():
+        def set_teeth(payload: SetTeethRequest):
+            if payload.domain:
+                print(f"Domain: {payload.domain}")
             self.mascot_app.request_set_named_image("teeth")
             return {"ok": True, "action": "set_teeth"}
 
