@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Social Media Tracker",
+  "version": "1.0",
+  "description": "Sends POST request when visiting social media websites",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["tabs"]
+}
