@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 15px;
+      font-family: Arial, sans-serif;
+    }
+    h2 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+    }
+    .input-group {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 15px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 8px 12px;
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3367d6;
+    }
+    .domain-list {
+      margin-top: 10px;
+    }
+    .domain-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .domain-item:last-child {
+      border-bottom: none;
+    }
+    .remove-btn {
+      background: #dc3545;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    .remove-btn:hover {
+      background: #c82333;
+    }
+    .empty-message {
+      color: #888;
+      text-align: center;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Add Custom Domains</h2>
+  <div class="input-group">
+    <input type="text" id="domainInput" placeholder="example.com">
+    <button id="addBtn">Add</button>
+  </div>
+  <div class="domain-list" id="domainList"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
