@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 try:
-    from ai_inference import ensure_model_exists, getMessage
+    from ai_inference import ensure_model_exists, generateAndPlaySound, getMessage
 
     ensure_model_exists()
     ai_features_enabled = True
@@ -30,6 +30,7 @@ except ImportError:
     ai_features_enabled = False
 
 from idle import IdleAnimation
+
 
 class ResizeRegion(IntFlag):
     NONE = 0
@@ -244,7 +245,7 @@ class MascotWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.on_activity_callback:
                 self.on_activity_callback()
-            
+
             local_pos = event.position().toPoint()
 
             if (
@@ -295,7 +296,7 @@ class MascotWindow(QWidget):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self.on_activity_callback:
             self.on_activity_callback()
-        
+
         local_pos = event.position().toPoint()
 
         if self._is_scaling and (event.buttons() & Qt.MouseButton.LeftButton):
@@ -437,7 +438,7 @@ class FastAPIController:
             )
             return {
                 "current_image": current,
-                "using_teeth": self.mascot_app.using_teeth,
+                "is_angry": self.mascot_app.is_angry,
             }
 
         @self.app.post("/image/toggle")
@@ -459,7 +460,8 @@ class FastAPIController:
                         print("Generic Passive Aggressive Quote goes herre")
                         self.mascot_app.request_set_named_image("teeth")
                     else:
-                        print(getMessage(payload.domain))
+                        generateAndPlaySound(getMessage(payload.domain))
+
                 self.mascot_app.request_set_named_image("teeth")
 
             background_tasks.add_task(process_teeth_async, payload.domain)
@@ -480,10 +482,12 @@ class FastAPIController:
 class MascotApp:
     def __init__(self, app: QApplication):
         self.app = app
+        self.anger_count = 0
         self.base_dir = Path(__file__).parent
-        self.default_image = self.base_dir / "mascot.png"
-        self.teeth_image = self.base_dir / "mascot_1.png"
-        self.using_teeth = False
+        self.default_image = self.base_dir / "mascot/mascot_centre.png"
+        self.angry_1_image = self.base_dir / "mascot/mascot_frown.png"
+        self.angry_2_image = self.base_dir / "mascot/mascot_smile.png"
+        self.is_angry = False
 
         self.window = MascotWindow(str(self.default_image))
         self.window.resize(200, 200)
@@ -521,7 +525,7 @@ class MascotApp:
 
         menu = QMenu()
 
-        self.swap_action = QAction("Swap to mascot_1.png", menu)
+        self.swap_action = QAction("Swap mascot.png", menu)
         self.swap_action.triggered.connect(self.toggle_image)
         menu.addAction(self.swap_action)
 
@@ -572,21 +576,36 @@ class MascotApp:
         if cmd == "toggle":
             self.toggle_image()
         elif cmd == "default":
-            if self.using_teeth:
+            if self.is_angry:
                 self.toggle_image()
         elif cmd == "teeth":
-            if not self.using_teeth:
+            if not self.is_angry:
                 self.toggle_image()
 
     def toggle_image(self) -> None:
-        target = self.teeth_image if not self.using_teeth else self.default_image
-        self.window.set_image(target)
-        self.using_teeth = not self.using_teeth
+        self.anger_count += 1
 
-        if self.using_teeth:
-            self.swap_action.setText("Swap to mascot.png")
+        if self.is_angry:
+            self.swap_action.setText("Swap to mascot angry.png")
+            match self.anger_count:
+                case 1 | 2 | 3:
+                    target = self.angry_1_image
+                case _:
+                    target = self.angry_2_image
         else:
-            self.swap_action.setText("Swap to mascot_1.png")
+            target = self.default_image
+
+        self.window.set_image(target)
+        self.is_angry = not self.is_angry
+
+        if self.is_angry:
+            self.swap_action.setText("Swap to mascot default.png")
+        else:
+            match self.anger_count:
+                case 1:
+                    pass
+                case _:
+                    self.swap_action.setText("Swap to mascot angry.png")
 
     def run(self) -> int:
         self.window.show()
