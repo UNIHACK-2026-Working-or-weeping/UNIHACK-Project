@@ -1,7 +1,10 @@
 import queue
+import random
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from enum import IntFlag, auto
 from pathlib import Path
 
@@ -10,8 +13,15 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from PySide6.QtCore import QObject, QSize, QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap, QTransform
+from PySide6.QtCore import QObject, QPoint, QRect, QSize, Qt, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QGuiApplication,
+    QIcon,
+    QMouseEvent,
+    QPixmap,
+    QTransform,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -29,7 +39,14 @@ except ImportError:
     print("Llama.cpp not installed, disabled AI features")
     ai_features_enabled = False
 
-from animation import AnimationController
+    def getMessage(domain: str, event: str | None = None) -> str:
+        return "Generic passive aggressive quote goes here"
+
+    def generateAndPlaySound(message: str) -> None:
+        return None
+
+
+from animation import AnimationController, AnimationMode
 
 
 class ResizeRegion(IntFlag):
@@ -86,10 +103,10 @@ class MascotWindow(QWidget):
         self.label.setMouseTracking(True)
 
         self._last_pixmap_size = QSize(0, 0)
-        self.flipped = False # Avatar faces left
+        self.flipped = False  # Avatar faces left
 
-        self.interrupt_on_user_activity = None
-        self.resume_after_user_activity = None
+        self.interrupt_on_user_activity: Callable[[], None] | None = None
+        self.resume_after_user_activity: Callable[[], None] | None = None
 
         self.set_image(image_path)
 
@@ -109,7 +126,7 @@ class MascotWindow(QWidget):
 
         if self.size().width() <= 1 or self.size().height() <= 1:
             self.resize(self.pixmap.size())
-        elif (                                                  # <-- guard restored
+        elif (  # <-- guard restored
             self.pixmap.width() != self._last_pixmap_size.width()
             or self.pixmap.height() != self._last_pixmap_size.height()
         ):
@@ -121,7 +138,7 @@ class MascotWindow(QWidget):
 
         self.alpha_image = Image.open(path).convert("RGBA")
         self._update_min_size_from_image()
-    
+
         self._last_pixmap_size = self.pixmap.size()
 
     def _update_min_size_from_image(self) -> None:
@@ -188,8 +205,17 @@ class MascotWindow(QWidget):
         if mapped is None or self.alpha_image is None:
             return False
         x, y = mapped
-        _, _, _, a = self.alpha_image.getpixel((x, y))
-        return a > alpha_threshold
+        pixel = self.alpha_image.getpixel((x, y))
+        if isinstance(pixel, tuple):
+            if len(pixel) >= 4:
+                alpha = pixel[3]
+                if alpha is None:
+                    return False
+                return alpha > alpha_threshold
+            return True
+        if pixel is None:
+            return False
+        return pixel > alpha_threshold
 
     def _hit_test_resize_region(self, pos: QPoint) -> ResizeRegion:
         r = self.rect()
@@ -323,7 +349,9 @@ class MascotWindow(QWidget):
             event.accept()
             return
 
-        if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):  # <-- was is_opaque_at check
+        if self._is_dragging and (
+            event.buttons() & Qt.MouseButton.LeftButton
+        ):  # <-- was is_opaque_at check
             self.move(event.globalPosition().toPoint() - self.drag_offset)
             event.accept()
             return
@@ -511,7 +539,7 @@ class FastAPIController:
 
         class SetTeethRequest(BaseModel):
             domain: str | None = None
-            event: str | None = None
+            event: dict[str, str] | None = None
 
         @self.app.get("/health")
         def health():
@@ -540,25 +568,61 @@ class FastAPIController:
             return {"ok": True, "action": "set_default"}
 
         @self.app.post("/image/angry")
-        def set_teeth(payload: SetTeethRequest):
-            if payload.domain:
-                self.mascot_app.request_angry()
-                if not ai_features_enabled:
-                    message = (
-                        f"Reminder: {payload.event}. Get back to work."
-                        if payload.event
-                        else "Stop browsing and go do your task."
-                    )
-                else:
-                    message = getMessage(payload.domain, payload.event)
-                self.mascot_app.request_show_message(message)
-                if self.mascot_app.get_voice_enabled():
-                    # generateAndPlaySound may block; run in thread
-                    threading.Thread(
-                        target=generateAndPlaySound,
-                        args=(message,),
-                        daemon=True,
-                    ).start()
+        def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
+
+            if not self.already_queued:
+
+                def process_teeth_async(domain: str | None):
+                    if payload.domain:
+                        if not ai_features_enabled:
+                            print("Generic Passive Aggressive Quote goes herre")
+                            self.mascot_app.request_angry()
+                        else:
+                            parsed_event: str | None = None
+                            if payload.event:
+                                event_title = payload.event.get("title", "").strip()
+                                event_start_raw = payload.event.get("start", "").strip()
+                                if event_title and event_start_raw:
+                                    try:
+                                        event_start = datetime.fromisoformat(
+                                            event_start_raw.replace("Z", "+00:00")
+                                        )
+                                        now = datetime.now(event_start.tzinfo)
+                                        days_until_event = (
+                                            event_start.date() - now.date()
+                                        ).days
+                                        if days_until_event >= 0:
+                                            if days_until_event < 3:
+                                                parsed_event = f"{event_title} on {event_start.strftime('%A')}"
+                                            else:
+                                                parsed_event = f"{event_title} in {days_until_event} days"
+
+                                    except ValueError:
+                                        parsed_event = None
+
+                            ## 40% chance it will bring up a event, not 100% as otherwise the nagging gets a bit samey
+                            if random.random() < 0.4:
+                                message = getMessage(payload.domain, parsed_event)
+                            else:
+                                message = getMessage(payload.domain)
+                            if message == "":
+                                # Mostly on first requests, tool calls don't work, running a second time normally fixes things
+                                if random.random() < 0.4:
+                                    message = getMessage(payload.domain, parsed_event)
+                                else:
+                                    message = getMessage(payload.domain)
+
+                            print(f"[/image/angry] Generated message: {message}")
+                            self.mascot_app.request_angry()
+                            self.mascot_app.request_show_message(message)
+                            if self.mascot_app.get_voice_enabled():
+                                generateAndPlaySound(message)
+                    self.already_queued = False
+                    print("[/image/angry] Processing completed")
+
+                self.already_queued = True
+                background_tasks.add_task(process_teeth_async, payload.domain)
+
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
@@ -601,6 +665,7 @@ class MascotApp(QObject):
         self.app_icon = self.base_dir / "mascot_logo.png"
         self.default_image = self.base_dir / "mascot/v2/default_1.png"
         self.is_angry = False
+        self.animation_mode = AnimationMode.V2
 
         self.window = MascotWindow(str(self.default_image))
         self.window.resize(200, 200)
@@ -647,6 +712,14 @@ class MascotApp(QObject):
         toggle_voice_action.setChecked(self.voice_enabled)
         toggle_voice_action.triggered.connect(self.toggle_voice)
         menu.addAction(toggle_voice_action)
+
+        toggle_legacy_animation_action = QAction("Use Alternate Costume", menu)
+        toggle_legacy_animation_action.setCheckable(True)
+        toggle_legacy_animation_action.setChecked(
+            self.animation_mode == AnimationMode.V1
+        )
+        toggle_legacy_animation_action.toggled.connect(self.toggle_animation_version)
+        menu.addAction(toggle_legacy_animation_action)
 
         menu.addSeparator()
 
@@ -728,6 +801,10 @@ class MascotApp(QObject):
         with self._voice_lock:
             return self.voice_enabled
 
+    def toggle_animation_version(self, checked: bool) -> None:
+        with self._command_lock:
+            self._pending_command = "anim_v1" if checked else "anim_v2"
+
     def _process_pending_command(self) -> None:
         cmd = None
         with self._command_lock:
@@ -736,14 +813,21 @@ class MascotApp(QObject):
                 self._pending_command = None
 
         if cmd == "default":
-            self.get_calm()
+            if self.is_angry:
+                self.get_calm()
         elif cmd == "teeth":
             self.get_angry()
         elif cmd == "make_angry":
             self.get_angry()
         elif cmd == "server_down":
-            self.command_timer.stop() 
+            self.command_timer.stop()
             self.animation.deactivate()
+        elif cmd == "anim_v1":
+            self.animation_mode = AnimationMode.V1
+            self.animation.set_mode(self.animation_mode)
+        elif cmd == "anim_v2":
+            self.animation_mode = AnimationMode.V2
+            self.animation.set_mode(self.animation_mode)
 
         msg = None
         with self._message_lock:
@@ -759,16 +843,23 @@ class MascotApp(QObject):
         self.animation.go_mad()
 
     def get_calm(self) -> None:
+        # Added to prevent thread errors
+        if not self.is_angry:
+            return
         self.is_angry = False
         self.animation.go_calm()
 
     def run(self) -> int:
-        self.animation = AnimationController(self.window, self.base_dir)
-        self.window.interrupt_on_user_activity = self.animation.interrupt_on_user_activity
-        self.window.resume_after_user_activity = self.animation.resume_after_user_activity
         self.window.show()
-        # Start with a calm state so random idle animations can appear
-        self.animation.go_calm()
+        self.animation = AnimationController(
+            self.window, self.base_dir, mode=self.animation_mode
+        )
+        self.window.interrupt_on_user_activity = (
+            self.animation.interrupt_on_user_activity
+        )
+        self.window.resume_after_user_activity = (
+            self.animation.resume_after_user_activity
+        )
         return self.app.exec()
 
 

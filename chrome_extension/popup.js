@@ -251,6 +251,13 @@ document.addEventListener("DOMContentLoaded", function () {
     const file = e.target.files[0];
     if (!file) return;
 
+    const fileLabel = document.getElementById("fileLabel");
+    if (fileLabel) {
+      fileLabel.textContent = file.name;
+    }
+
+    console.log("[Calendar][Chrome] Selected file", file.name);
+
     const reader = new FileReader();
     reader.onload = function (e) {
       const icsData = e.target.result;

@@ -22,30 +22,40 @@ api.runtime.onInstalled.addListener(() => {
   });
 });
 
-let customDomains = [];
 let previousTabId = null;
 const tabUrlCache = new Map();
 const pendingTimers = new Map();
 
-async function loadCustomDomains() {
+function normalizeDomain(domain) {
+  if (!domain) return "";
+  return String(domain).trim().toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+}
+
+async function getCustomDomains() {
   const result = await api.storage.local.get("customDomains");
-  customDomains = result.customDomains || [];
+  return (result.customDomains || []).map(normalizeDomain).filter(Boolean);
 }
 
 async function saveCustomDomains(domains) {
   await api.storage.local.set({ customDomains: domains });
-  customDomains = domains;
 }
 
 async function addDomain(domain) {
-  if (!domain || customDomains.includes(domain)) return;
-  const newDomains = [...customDomains, domain];
+  const normalizedDomain = normalizeDomain(domain);
+  if (!normalizedDomain) return;
+
+  const customDomains = await getCustomDomains();
+  if (customDomains.includes(normalizedDomain)) return;
+
+  const newDomains = [...customDomains, normalizedDomain];
   await saveCustomDomains(newDomains);
-  console.log("Added domain:", domain);
+  console.log("Added domain:", normalizedDomain);
 }
 
-function getAllDomains() {
-  return [...defaultDomains, ...customDomains];
+async function getAllDomains() {
+  const customDomains = await getCustomDomains();
+  const normalizedDefaults = defaultDomains.map(normalizeDomain);
+  return [...new Set([...normalizedDefaults, ...customDomains])];
 }
 
 async function sendTeethRequest(domain, tabId) {
@@ -67,12 +77,15 @@ async function sendTeethRequest(domain, tabId) {
 
 async function executeTeethRequest(domain) {
   try {
+    const { nearestEvent } = await api.storage.local.get("nearestEvent");
+    const payload = { domain: domain, event: nearestEvent || null };
+    console.log("[Calendar][Firefox] Sending /image/angry payload", payload);
     await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ domain: domain }),
+      body: JSON.stringify(payload),
     });
     console.log("TEETH", domain);
   } catch (error) {
@@ -99,12 +112,13 @@ async function sendDefaultRequest() {
   }
 }
 
-function isSocialMediaUrl(url) {
+async function isSocialMediaUrl(url) {
   if (!url) return false;
 
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return getAllDomains().some(
+    const hostname = normalizeDomain(new URL(url).hostname);
+    const allDomains = await getAllDomains();
+    return allDomains.some(
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
     );
   } catch {
@@ -149,15 +163,13 @@ if (api.contextMenus.exists()) {
   console.error("contextMenus API is unavailable");
 }
 
-loadCustomDomains();
-
-api.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+api.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (tab.url) {
     tabUrlCache.set(tabId, tab.url);
   }
 
   if (changeInfo.status === "complete" && tab.url) {
-    if (isSocialMediaUrl(tab.url)) {
+    if (await isSocialMediaUrl(tab.url)) {
       const hostname = new URL(tab.url).hostname.toLowerCase();
       sendTeethRequest(hostname, tabId);
     } else {
@@ -170,7 +182,7 @@ api.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     if (previousTabId !== null) {
       const previousUrl = tabUrlCache.get(previousTabId);
-      if (previousUrl && isSocialMediaUrl(previousUrl)) {
+      if (previousUrl && (await isSocialMediaUrl(previousUrl))) {
         sendDefaultRequest();
         if (pendingTimers.has(previousTabId)) {
           clearTimeout(pendingTimers.get(previousTabId));
@@ -185,7 +197,7 @@ api.tabs.onActivated.addListener(async (activeInfo) => {
     }
 
     if (currentTab.url) {
-      if (isSocialMediaUrl(currentTab.url)) {
+      if (await isSocialMediaUrl(currentTab.url)) {
         const hostname = new URL(currentTab.url).hostname.toLowerCase();
         sendTeethRequest(hostname, activeInfo.tabId);
       } else {
@@ -199,10 +211,10 @@ api.tabs.onActivated.addListener(async (activeInfo) => {
   }
 });
 
-api.tabs.onRemoved.addListener((tabId) => {
+api.tabs.onRemoved.addListener(async (tabId) => {
   try {
     const url = tabUrlCache.get(tabId);
-    if (url && isSocialMediaUrl(url)) {
+    if (url && (await isSocialMediaUrl(url))) {
       sendDefaultRequest();
       if (pendingTimers.has(tabId)) {
         clearTimeout(pendingTimers.get(tabId));
