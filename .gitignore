@@ -1,3 +1,6 @@
 *.gguf
 *__pycache__
 output_custom_voice.wav
+*/build/
+*/dist/
+*.zip
