@@ -14,8 +14,8 @@ const defaultDomains = [
   "twitch.tv",
 ];
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get("defaultDomains", function(result) {
-    if (!result.defaultDomains) { 
+  chrome.storage.local.get("defaultDomains", function (result) {
+    if (!result.defaultDomains) {
       chrome.storage.local.set({ defaultDomains });
     }
   });
@@ -66,6 +66,7 @@ async function sendTeethRequest(domain, tabId) {
 
 async function executeTeethRequest(domain) {
   try {
+    console.log("executeTeethRequest: Sending request to /image/angry");
     await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
@@ -113,14 +114,13 @@ function isSocialMediaUrl(url) {
 
 function changeMascotImage() {
   const mascotImage = document.querySelector('img[src*="mascot.png"]');
-  
+
   if (mascotImage) {
-    mascotImage.src = mascotImage.src.replace('mascot.png', 'mascot-smile.png');
+    mascotImage.src = mascotImage.src.replace("mascot.png", "mascot-smile.png");
   } else {
     console.log("Mascot image not found.");
   }
 }
-
 
 console.log("background loaded");
 console.log("chrome.contextMenus =", chrome.contextMenus);
@@ -158,6 +158,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
     if (isSocialMediaUrl(tab.url)) {
       const hostname = new URL(tab.url).hostname.toLowerCase();
+      console.log("THIS RAN");
       sendTeethRequest(hostname, tabId);
     } else {
       sendDefaultRequest();
