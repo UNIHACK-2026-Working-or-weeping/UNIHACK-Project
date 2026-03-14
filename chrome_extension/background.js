@@ -1,3 +1,5 @@
+const DISABLE_TIMER = true;
+
 const defaultDomains = [
   "facebook.com",
   "twitter.com",
@@ -11,10 +13,18 @@ const defaultDomains = [
   "youtube.com",
   "twitch.tv",
 ];
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.get("defaultDomains", function (result) {
+    if (!result.defaultDomains) {
+      chrome.storage.local.set({ defaultDomains });
+    }
+  });
+});
 
 let customDomains = [];
 let previousTabId = null;
 const tabUrlCache = new Map();
+const pendingTimers = new Map();
 
 async function loadCustomDomains() {
   const result = await chrome.storage.local.get("customDomains");
@@ -37,15 +47,34 @@ function getAllDomains() {
   return [...defaultDomains, ...customDomains];
 }
 
-async function sendTeethRequest() {
+async function sendTeethRequest(domain, tabId) {
+  if (pendingTimers.has(tabId)) {
+    clearTimeout(pendingTimers.get(tabId));
+    pendingTimers.delete(tabId);
+  }
+
+  if (DISABLE_TIMER) {
+    await executeTeethRequest(domain);
+  } else {
+    const timerId = setTimeout(() => {
+      executeTeethRequest(domain);
+      pendingTimers.delete(tabId);
+    }, 10000);
+    pendingTimers.set(tabId, timerId);
+  }
+}
+
+async function executeTeethRequest(domain) {
   try {
-    await fetch("http://localhost:8000/image/teeth", {
+    console.log("executeTeethRequest: Sending request to /image/angry");
+    await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ domain: domain }),
     });
-    console.log("TEETH");
+    console.log("TEETH", domain);
   } catch (error) {
     console.error("Failed to send POST request:", error);
   }
@@ -53,12 +82,18 @@ async function sendTeethRequest() {
 
 async function sendDefaultRequest() {
   try {
-    await fetch("http://localhost:8000/image/default", {
+    console.log("sendDefaultRequest: Sending request to /image/calm");
+    const response = await fetch("http://localhost:8000/image/calm", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
     });
+    console.log(
+      "sendDefaultRequest: Response received",
+      response.status,
+      response.statusText,
+    );
   } catch (error) {
     console.error("Failed to send POST request:", error);
   }
@@ -74,6 +109,16 @@ function isSocialMediaUrl(url) {
     );
   } catch {
     return false;
+  }
+}
+
+function changeMascotImage() {
+  const mascotImage = document.querySelector('img[src*="mascot.png"]');
+
+  if (mascotImage) {
+    mascotImage.src = mascotImage.src.replace("mascot.png", "mascot_smile.png");
+  } else {
+    console.log("Mascot image not found.");
   }
 }
 
@@ -112,7 +157,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
   if (changeInfo.status === "complete" && tab.url) {
     if (isSocialMediaUrl(tab.url)) {
-      sendTeethRequest();
+      const hostname = new URL(tab.url).hostname.toLowerCase();
+      console.log("THIS RAN");
+      sendTeethRequest(hostname, tabId);
+    } else {
+      sendDefaultRequest();
     }
   }
 });
@@ -123,6 +172,10 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       const previousUrl = tabUrlCache.get(previousTabId);
       if (previousUrl && isSocialMediaUrl(previousUrl)) {
         sendDefaultRequest();
+        if (pendingTimers.has(previousTabId)) {
+          clearTimeout(pendingTimers.get(previousTabId));
+          pendingTimers.delete(previousTabId);
+        }
       }
     }
 
@@ -131,8 +184,13 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       tabUrlCache.set(activeInfo.tabId, currentTab.url);
     }
 
-    if (currentTab.url && isSocialMediaUrl(currentTab.url)) {
-      sendTeethRequest();
+    if (currentTab.url) {
+      if (isSocialMediaUrl(currentTab.url)) {
+        const hostname = new URL(currentTab.url).hostname.toLowerCase();
+        sendTeethRequest(hostname, activeInfo.tabId);
+      } else {
+        sendDefaultRequest();
+      }
     }
 
     previousTabId = activeInfo.tabId;
@@ -146,6 +204,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     const url = tabUrlCache.get(tabId);
     if (url && isSocialMediaUrl(url)) {
       sendDefaultRequest();
+      if (pendingTimers.has(tabId)) {
+        clearTimeout(pendingTimers.get(tabId));
+        pendingTimers.delete(tabId);
+      }
     }
     tabUrlCache.delete(tabId);
   } catch (error) {

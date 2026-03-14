@@ -6,8 +6,18 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115.0",
+    "huggingface-hub[cli]>=0.36.2",
+    "llama-cpp-python",
     "pillow>=12.1.1",
+    "playsound3>=3.3.1",
     "pydantic>=2.12.5",
+    "pyinstaller>=6.19.0",
     "pyside6>=6.10.2",
+    "qwen-tts>=0.1.1",
+    "tldextract>=5.3.1",
+    "torch>=2.10.0",
     "uvicorn>=0.30.0",
 ]
+
+[tool.uv.sources]
+llama-cpp-python = { git = "https://github.com/JamePeng/llama-cpp-python.git" }

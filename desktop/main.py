@@ -1,15 +1,17 @@
+import queue
 import sys
 import threading
+from dataclasses import dataclass
 from enum import IntFlag, auto
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from PySide6.QtCore import QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap
+from PySide6.QtCore import QObject, QSize, QPoint, QRect, Qt, QTimer
+from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -17,6 +19,17 @@ from PySide6.QtWidgets import (
     QSystemTrayIcon,
     QWidget,
 )
+
+try:
+    from ai_inference import ensure_model_exists, generateAndPlaySound, getMessage
+
+    ensure_model_exists()
+    ai_features_enabled = True
+except ImportError:
+    print("Llama.cpp not installed, disabled AI features")
+    ai_features_enabled = False
+
+from animation import AnimationController
 
 
 class ResizeRegion(IntFlag):
@@ -65,9 +78,17 @@ class MascotWindow(QWidget):
         self._scale_start_geometry = QRect()
         self._scale_start_center = QPoint()
 
+        self._is_dragging = False
+
         self.setMinimumSize(self.min_w, self.min_h)
         self.setMouseTracking(True)
         self.label.setMouseTracking(True)
+
+        self._last_pixmap_size = QSize(0, 0)
+        self.flipped = False # Avatar faces left
+
+        self.interrupt_on_user_activity = None
+        self.resume_after_user_activity = None
 
         self.set_image(image_path)
 
@@ -87,7 +108,10 @@ class MascotWindow(QWidget):
 
         if self.size().width() <= 1 or self.size().height() <= 1:
             self.resize(self.pixmap.size())
-        else:
+        elif (                                                  # <-- guard restored
+            self.pixmap.width() != self._last_pixmap_size.width()
+            or self.pixmap.height() != self._last_pixmap_size.height()
+        ):
             self._apply_aspect_resize_from_size(
                 self.width(), self.height(), keep_center=True
             )
@@ -96,6 +120,8 @@ class MascotWindow(QWidget):
 
         self.alpha_image = Image.open(path).convert("RGBA")
         self._update_min_size_from_image()
+    
+        self._last_pixmap_size = self.pixmap.size()
 
     def _update_min_size_from_image(self) -> None:
         if self.pixmap.isNull():
@@ -112,6 +138,8 @@ class MascotWindow(QWidget):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
+        if self.flipped:
+            scaled = scaled.transformed(QTransform().scale(-1, 1))
         self.label.setPixmap(scaled)
         self.label.resize(self.size())
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -236,6 +264,8 @@ class MascotWindow(QWidget):
                 self._scale_start_geometry = self.geometry()
                 self._scale_start_center = self.geometry().center()
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
+                if self.interrupt_on_user_activity:
+                    self.interrupt_on_user_activity()
                 event.accept()
                 return
 
@@ -262,15 +292,21 @@ class MascotWindow(QWidget):
 
                 self._resize_anchor = QPoint(anchor_x, anchor_y)
                 self.setCursor(self._cursor_for_region(region))
+                if self.interrupt_on_user_activity:
+                    self.interrupt_on_user_activity()
                 event.accept()
                 return
 
             if self.is_opaque_at(local_pos):
+                self._is_dragging = True
                 self.drag_offset = (
                     event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 )
+                if self.interrupt_on_user_activity:
+                    self.interrupt_on_user_activity()
                 event.accept()
                 return
+
         event.ignore()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -286,12 +322,12 @@ class MascotWindow(QWidget):
             event.accept()
             return
 
-        if event.buttons() & Qt.MouseButton.LeftButton:
-            if self.is_opaque_at(local_pos):
-                self.move(event.globalPosition().toPoint() - self.drag_offset)
-                event.accept()
-                return
-        else:
+        if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):  # <-- was is_opaque_at check
+            self.move(event.globalPosition().toPoint() - self.drag_offset)
+            event.accept()
+            return
+
+        if not event.buttons() & Qt.MouseButton.LeftButton:
             region = self._hit_test_resize_region(local_pos)
             self.setCursor(self._cursor_for_region(region))
 
@@ -302,12 +338,23 @@ class MascotWindow(QWidget):
             if self._is_scaling:
                 self._is_scaling = False
                 self.setCursor(Qt.CursorShape.ArrowCursor)
+                if self.resume_after_user_activity:
+                    self.resume_after_user_activity()
                 event.accept()
                 return
             if self._is_resizing:
                 self._is_resizing = False
                 self._resize_region = ResizeRegion.NONE
                 self.setCursor(Qt.CursorShape.ArrowCursor)
+                if self.resume_after_user_activity:
+                    self.resume_after_user_activity()
+                event.accept()
+                return
+            if self._is_dragging:
+                self._is_dragging = False
+                self.drag_offset = QPoint()
+                if self.resume_after_user_activity:
+                    self.resume_after_user_activity()
                 event.accept()
                 return
         super().mouseReleaseEvent(event)
@@ -381,10 +428,72 @@ class MascotWindow(QWidget):
         self.setGeometry(x, y, new_w, new_h)
 
 
+class MessagePopup(QWidget):
+    def __init__(self, mascot_window: MascotWindow):
+        super().__init__()
+        self.mascot_window = mascot_window
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+            | Qt.WindowType.Window
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self.label = QLabel(self)
+        self.label.setStyleSheet("""
+            QLabel {
+                background: rgba(30, 30, 30, 230);
+                border-radius: 12px;
+                padding: 16px;
+                color: white;
+                font-size: 14px;
+            }
+        """)
+        self.label.setWordWrap(True)
+
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide)
+
+        self.hide()
+
+    def show_message(self, message: str) -> None:
+        self.label.setText(message)
+        self.label.adjustSize()
+        self.resize(self.label.size())
+
+        mascot_rect = self.mascot_window.geometry()
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            screen_rect = screen.availableGeometry()
+
+            popup_width = self.width()
+            preferred_x = mascot_rect.left() - popup_width - 20
+
+            if preferred_x < screen_rect.left():
+                x = mascot_rect.right() + 20
+            else:
+                x = preferred_x
+
+            y = mascot_rect.center().y() - self.height() // 2
+
+            x = max(screen_rect.left(), min(x, screen_rect.right() - popup_width))
+            y = max(screen_rect.top(), min(y, screen_rect.bottom() - self.height()))
+        else:
+            x = mascot_rect.left() - self.width() - 20
+            y = mascot_rect.center().y() - self.height() // 2
+
+        self.move(x, y)
+        self.show()
+        self.timer.start(10000)
+
+
 class FastAPIController:
     def __init__(self, mascot_app: "MascotApp"):
         self.mascot_app = mascot_app
         self.app = FastAPI(title="Mascot Control API", version="1.0.0")
+        self.already_queued = False
 
         self.app.add_middleware(
             CORSMiddleware,  # ty: ignore[invalid-argument-type]
@@ -399,6 +508,9 @@ class FastAPIController:
         class SetImageRequest(BaseModel):
             image: str
 
+        class SetTeethRequest(BaseModel):
+            domain: str | None = None
+
         @self.app.get("/health")
         def health():
             return {"status": "ok"}
@@ -412,12 +524,12 @@ class FastAPIController:
             )
             return {
                 "current_image": current,
-                "using_teeth": self.mascot_app.using_teeth,
+                "is_angry": self.mascot_app.is_angry,
             }
 
-        @self.app.post("/image/toggle")
+        @self.app.post("/image/calm")
         def toggle_image():
-            self.mascot_app.request_toggle()
+            self.mascot_app.get_calm()
             return {"ok": True, "action": "toggle"}
 
         @self.app.post("/image/default")
@@ -425,10 +537,27 @@ class FastAPIController:
             self.mascot_app.request_set_named_image("default")
             return {"ok": True, "action": "set_default"}
 
-        @self.app.post("/image/teeth")
-        @self.app.get("/image/teeth")
-        def set_teeth():
-            self.mascot_app.request_set_named_image("teeth")
+        @self.app.post("/image/angry")
+        def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
+            print(self.already_queued)
+            if not self.already_queued:
+
+                def process_teeth_async(domain: str | None):
+                    if payload.domain:
+                        if not ai_features_enabled:
+                            print("Generic Passive Aggressive Quote goes herre")
+                            self.mascot_app.request_angry()
+                        else:
+                            message = getMessage(payload.domain)
+                            self.mascot_app.request_angry()
+                            self.mascot_app.request_show_message(message)
+                            if self.mascot_app.get_voice_enabled():
+                                generateAndPlaySound(message)
+                    self.already_queued = False
+
+                self.already_queued = True
+                background_tasks.add_task(process_teeth_async, payload.domain)
+
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
@@ -442,23 +571,39 @@ class FastAPIController:
             self.mascot_app.request_set_named_image(image_name)
             return {"ok": True, "action": "set_image", "image": image_name}
 
+        @self.app.get("/test/popup")
+        def test_popup():
+            self.mascot_app.request_show_message(
+                "Test popup message!dhuiasdhigiasgdfuadsgfkdswgfjsdgfiju bsdjhvcfbuhkdsagfjhsgdfvuhohiudhgiduysfg iuih sduifguhsdg fuysdgf"
+            )
+            return {"ok": True, "action": "test_popup"}
 
-class MascotApp:
+
+class MascotApp(QObject):
     def __init__(self, app: QApplication):
+        super().__init__()
         self.app = app
         self.base_dir = Path(__file__).parent
-        self.default_image = self.base_dir / "mascot.png"
-        self.teeth_image = self.base_dir / "mascot_1.png"
-        self.using_teeth = False
+        self.app_icon = self.base_dir / "mascot_logo.png"
+        self.default_image = self.base_dir / "mascot/v2/default_1.png"
+        self.is_angry = False
 
         self.window = MascotWindow(str(self.default_image))
         self.window.resize(200, 200)
         self._position_window()
 
+        self.voice_enabled = False
+        self._voice_lock = threading.Lock()
+
+        self.message_popup = MessagePopup(self.window)
+
         self.tray = self._create_tray_icon()
 
         self._pending_command: str | None = None
         self._command_lock = threading.Lock()
+
+        self._pending_message: str | None = None
+        self._message_lock = threading.Lock()
 
         self.api = FastAPIController(self)
         self._start_api_server()
@@ -477,19 +622,17 @@ class MascotApp:
 
     def _create_tray_icon(self) -> QSystemTrayIcon:
         tray_icon = QSystemTrayIcon(self.app)
-        icon = QIcon(str(self.default_image))
-        if icon.isNull():
-            icon = self.app.style().standardIcon(
-                self.app.style().StandardPixmap.SP_ComputerIcon
-            )
+        icon = QIcon(str(self.app_icon))
         tray_icon.setIcon(icon)
         tray_icon.setToolTip("Mascot App")
 
         menu = QMenu()
 
-        self.swap_action = QAction("Swap to mascot_1.png", menu)
-        self.swap_action.triggered.connect(self.toggle_image)
-        menu.addAction(self.swap_action)
+        toggle_voice_action = QAction("Enable Voice", menu)
+        toggle_voice_action.setCheckable(True)
+        toggle_voice_action.setChecked(self.voice_enabled)
+        toggle_voice_action.triggered.connect(self.toggle_voice)
+        menu.addAction(toggle_voice_action)
 
         menu.addSeparator()
 
@@ -510,8 +653,15 @@ class MascotApp:
         )
         server = uvicorn.Server(config)
 
+        def run_server():
+            server.run()
+            # Only post if animation has been initialised
+            if hasattr(self, "animation"):
+                with self._command_lock:
+                    self._pending_command = "server_down"
+
         self.api_thread = threading.Thread(
-            target=server.run,
+            target=run_server,
             daemon=True,
             name="fastapi-server-thread",
         )
@@ -521,9 +671,25 @@ class MascotApp:
         with self._command_lock:
             self._pending_command = "toggle"
 
+    def request_angry(self) -> None:
+        with self._command_lock:
+            self._pending_command = "make_angry"
+
     def request_set_named_image(self, image_name: str) -> None:
         with self._command_lock:
             self._pending_command = image_name
+
+    def request_show_message(self, message: str) -> None:
+        with self._message_lock:
+            self._pending_message = message
+
+    def toggle_voice(self) -> None:
+        with self._voice_lock:
+            self.voice_enabled = not self.voice_enabled
+
+    def get_voice_enabled(self) -> bool:
+        with self._voice_lock:
+            return self.voice_enabled
 
     def _process_pending_command(self) -> None:
         cmd = None
@@ -532,30 +698,38 @@ class MascotApp:
                 cmd = self._pending_command
                 self._pending_command = None
 
-        if cmd is None:
-            return
-
-        if cmd == "toggle":
-            self.toggle_image()
-        elif cmd == "default":
-            if self.using_teeth:
-                self.toggle_image()
+        if cmd == "default":
+            self.get_calm()
         elif cmd == "teeth":
-            if not self.using_teeth:
-                self.toggle_image()
+            self.get_angry()
+        elif cmd == "make_angry":
+            self.get_angry()
+        elif cmd == "server_down":
+            self.command_timer.stop() 
+            self.animation.deactivate()
 
-    def toggle_image(self) -> None:
-        target = self.teeth_image if not self.using_teeth else self.default_image
-        self.window.set_image(target)
-        self.using_teeth = not self.using_teeth
+        msg = None
+        with self._message_lock:
+            if self._pending_message is not None:
+                msg = self._pending_message
+                self._pending_message = None
 
-        if self.using_teeth:
-            self.swap_action.setText("Swap to mascot.png")
-        else:
-            self.swap_action.setText("Swap to mascot_1.png")
+        if msg is not None:
+            self.message_popup.show_message(msg)
+
+    def get_angry(self) -> None:
+        self.is_angry = True
+        self.animation.go_mad()
+
+    def get_calm(self) -> None:
+        self.is_angry = False
+        self.animation.go_calm()
 
     def run(self) -> int:
         self.window.show()
+        self.animation = AnimationController(self.window, self.base_dir)
+        self.window.interrupt_on_user_activity = self.animation.interrupt_on_user_activity
+        self.window.resume_after_user_activity = self.animation.resume_after_user_activity
         return self.app.exec()
 
 

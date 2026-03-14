@@ -13,10 +13,20 @@ TODO: FILL OUT THIS PART OF README
 2. Enable Developer Mode by clicking the toggle switch in the top right.
 3. Click `Load unpacked` and select the `chrome_extension` directory
 
+#### Firefox Extension
+1. Go to [`about:debugging#/runtime/this-firefox`](about:debugging#/runtime/this-firefox)
+2. Click "Load Temporary Add-on"
+3. Select the `manifest.json` file in the `firefox_extension` directory
+
 #### Desktop Mascot
 1. Install UV\
   https://docs.astral.sh/uv/#installation
 2. Navigate to desktop folder\
   `cd desktop`
-3. Run the program\
+3. Download tts model
+  `uv run huggingface-cli download Qwen/Qwen3-TTS-12Hz-0.6B-Base --local-dir ./models/Qwen3-TTS-12Hz-0.6B-Base`
+4. Run the program\
     `uv run main.py`
+
+#### Disabling AI Features for local dev
+Comment out `name = "llama-cpp-python"` in `pyproject.toml`
