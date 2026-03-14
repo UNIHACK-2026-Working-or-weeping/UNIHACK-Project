@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const domainInput = document.getElementById("domainInput");
   const addBtn = document.getElementById("addBtn");
   const domainList = document.getElementById("domainList");
+  const icsFileInput = document.getElementById("icsFileInput");
 
   function loadDomains() {
     chrome.storage.local.get("customDomains", function (result) {
@@ -66,6 +67,71 @@ document.addEventListener("DOMContentLoaded", function () {
       customDomains = customDomains.filter((d) => d !== domain);
       chrome.storage.local.set({ customDomains: customDomains }, function () {
         loadDomains();
+      });
+    });
+  }
+
+
+  function parseIcs(icsData) {
+    const jCalData = ICAL.parse(icsData);
+    const comp = new ICAL.Component(jCalData);
+    const vevents = comp.getAllProperties('vevent');
+
+    const now = new Date();
+    const oneWeekLater = new Date();
+    oneWeekLater.setDate(now.getDate() + 7);
+
+    const upcomingEvents = [];
+
+    vevents.forEach((event) => {
+      const start = event.getFirstValue().startDate.toJSDate();
+      if (start >= now && start <= oneWeekLater) {
+        upcomingEvents.push({
+          summary: event.getFirstValue('summary'),
+          start: start,
+          end: event.getFirstValue('dtend').toJSDate(),
+          location: event.getFirstValue('location'),
+        });
+      }
+    });
+    if (upcomingEvents.length > 0) {
+      spawnMascotOnSocialMedia();
+    }
+  }
+
+  icsFileInput.addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const icsData = e.target.result;
+      parseIcs(icsData); 
+    };
+    reader.readAsText(file);
+  });
+
+
+function spawnMascotOnSocialMedia() {
+  chrome.storage.local.get("defaultDomains", function (result) {
+    const defaultDomains = result.defaultDomains || [];
+    
+    chrome.tabs.query({}, function (tabs) {
+      chrome.storage.local.get("customDomains", function (result) {
+        const customDomains = result.customDomains || [];
+        const allDomains = [...defaultDomains, ...customDomains];
+
+        tabs.forEach((tab) => {
+          const url = new URL(tab.url);
+          const hostname = url.hostname.toLowerCase();
+          
+          if (allDomains.some(domain => hostname.endsWith(domain))) {
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: changeMascotImage
+            });
+          }
+        });
       });
     });
   }
