@@ -575,6 +575,10 @@ class FastAPIController:
                             self.mascot_app.request_angry()
                         else:
                             message = getMessage(payload.domain)
+                            if message == "":
+                                # Mostly on first requests, tool calls don't work, running a second time normally fixes things
+                                message = getMessage(payload.domain)
+
                             self.mascot_app.request_angry()
                             self.mascot_app.request_show_message(message)
                             if self.mascot_app.get_voice_enabled():
@@ -727,9 +731,8 @@ class MascotApp(QObject):
             return self.voice_enabled
 
     def toggle_animation_version(self, checked: bool) -> None:
-        self.animation_mode = AnimationMode.V1 if checked else AnimationMode.V2
-        if hasattr(self, "animation"):
-            self.animation.set_mode(self.animation_mode)
+        with self._command_lock:
+            self._pending_command = "anim_v1" if checked else "anim_v2"
 
     def _process_pending_command(self) -> None:
         cmd = None
@@ -747,6 +750,12 @@ class MascotApp(QObject):
         elif cmd == "server_down":
             self.command_timer.stop()
             self.animation.deactivate()
+        elif cmd == "anim_v1":
+            self.animation_mode = AnimationMode.V1
+            self.animation.set_mode(self.animation_mode)
+        elif cmd == "anim_v2":
+            self.animation_mode = AnimationMode.V2
+            self.animation.set_mode(self.animation_mode)
 
         msg = None
         with self._message_lock:
