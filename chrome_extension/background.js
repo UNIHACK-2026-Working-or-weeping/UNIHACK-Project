@@ -135,6 +135,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (isSocialMediaUrl(tab.url)) {
       const hostname = new URL(tab.url).hostname.toLowerCase();
       sendTeethRequest(hostname, tabId);
+    } else {
+      sendDefaultRequest();
     }
   }
 });
@@ -157,9 +159,13 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       tabUrlCache.set(activeInfo.tabId, currentTab.url);
     }
 
-    if (currentTab.url && isSocialMediaUrl(currentTab.url)) {
-      const hostname = new URL(currentTab.url).hostname.toLowerCase();
-      sendTeethRequest(hostname, activeInfo.tabId);
+    if (currentTab.url) {
+      if (isSocialMediaUrl(currentTab.url)) {
+        const hostname = new URL(currentTab.url).hostname.toLowerCase();
+        sendTeethRequest(hostname, activeInfo.tabId);
+      } else {
+        sendDefaultRequest();
+      }
     }
 
     previousTabId = activeInfo.tabId;
