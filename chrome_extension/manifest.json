@@ -8,6 +8,7 @@
   },
   "permissions": ["tabs", "storage", "contextMenus"],
   "action": {
+    "default_icon": "mascot_logo.png",
     "default_popup": "popup.html"
   }
 }
