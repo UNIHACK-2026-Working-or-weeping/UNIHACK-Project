@@ -13,7 +13,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderDomains(domains) {
     domainList.innerHTML = "";
     if (domains.length === 0) {
-      domainList.innerHTML = '<div class="empty-message">No custom domains added</div>';
+      domainList.innerHTML =
+        '<div class="empty-message">No custom domains added</div>';
       return;
     }
 
@@ -49,10 +50,13 @@ document.addEventListener("DOMContentLoaded", function () {
         let customDomains = result.customDomains || [];
         if (!customDomains.includes(hostname)) {
           customDomains.push(hostname);
-          chrome.storage.local.set({ customDomains: customDomains }, function () {
-            domainInput.value = "";
-            loadDomains();
-          });
+          chrome.storage.local.set(
+            { customDomains: customDomains },
+            function () {
+              domainInput.value = "";
+              loadDomains();
+            },
+          );
         }
       });
     } catch (e) {
