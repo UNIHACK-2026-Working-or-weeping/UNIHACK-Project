@@ -41,6 +41,7 @@ class MascotWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setStyleSheet("background: transparent;")
 
         self.label = QLabel(self)
         self.label.setStyleSheet("background: transparent;")
@@ -381,6 +382,67 @@ class MascotWindow(QWidget):
         self.setGeometry(x, y, new_w, new_h)
 
 
+class MessagePopup(QWidget):
+    def __init__(self, mascot_window: MascotWindow):
+        super().__init__()
+        self.mascot_window = mascot_window
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+            | Qt.WindowType.Window
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self.label = QLabel(self)
+        self.label.setStyleSheet("""
+            QLabel {
+                background: rgba(30, 30, 30, 230);
+                border-radius: 12px;
+                padding: 16px;
+                color: white;
+                font-size: 14px;
+            }
+        """)
+        self.label.setWordWrap(True)
+
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide)
+
+        self.hide()
+
+    def show_message(self, message: str, duration_ms: int = 4000) -> None:
+        self.label.setText(message)
+        self.label.adjustSize()
+        self.resize(self.label.size())
+
+        mascot_rect = self.mascot_window.geometry()
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            screen_rect = screen.availableGeometry()
+
+            popup_width = self.width()
+            preferred_x = mascot_rect.left() - popup_width - 20
+
+            if preferred_x < screen_rect.left():
+                x = mascot_rect.right() + 20
+            else:
+                x = preferred_x
+
+            y = mascot_rect.center().y() - self.height() // 2
+
+            x = max(screen_rect.left(), min(x, screen_rect.right() - popup_width))
+            y = max(screen_rect.top(), min(y, screen_rect.bottom() - self.height()))
+        else:
+            x = mascot_rect.left() - self.width() - 20
+            y = mascot_rect.center().y() - self.height() // 2
+
+        self.move(x, y)
+        self.show()
+        self.timer.start(duration_ms)
+
+
 class FastAPIController:
     def __init__(self, mascot_app: "MascotApp"):
         self.mascot_app = mascot_app
@@ -398,6 +460,10 @@ class FastAPIController:
     def _configure_routes(self) -> None:
         class SetImageRequest(BaseModel):
             image: str
+
+        class SetTeethRequest(BaseModel):
+            domain: str | None = None
+            event: str | None = None
 
         @self.app.get("/health")
         def health():
@@ -425,10 +491,26 @@ class FastAPIController:
             self.mascot_app.request_set_named_image("default")
             return {"ok": True, "action": "set_default"}
 
-        @self.app.post("/image/teeth")
-        @self.app.get("/image/teeth")
-        def set_teeth():
-            self.mascot_app.request_set_named_image("teeth")
+        @self.app.post("/image/angry")
+        def set_teeth(payload: SetTeethRequest):
+            if payload.domain:
+                self.mascot_app.request_angry()
+                if not ai_features_enabled:
+                    message = (
+                        f"Reminder: {payload.event}. Get back to work."
+                        if payload.event
+                        else "Stop browsing and go do your task."
+                    )
+                else:
+                    message = getMessage(payload.domain, payload.event)
+                self.mascot_app.request_show_message(message)
+                if self.mascot_app.get_voice_enabled():
+                    # generateAndPlaySound may block; run in thread
+                    threading.Thread(
+                        target=generateAndPlaySound,
+                        args=(message,),
+                        daemon=True,
+                    ).start()
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
@@ -442,6 +524,25 @@ class FastAPIController:
             self.mascot_app.request_set_named_image(image_name)
             return {"ok": True, "action": "set_image", "image": image_name}
 
+        @self.app.post("/image/hide")
+        def hide_mascot():
+            self.mascot_app.window.hide()
+            self.mascot_app.message_popup.show_message("Mascot turned off", duration_ms=1800)
+            return {"ok": True, "action": "hide", "message": "Mascot turned off"}
+
+        @self.app.post("/image/show")
+        def show_mascot():
+            self.mascot_app.window.show()
+            self.mascot_app.request_set_named_image("default")
+            self.mascot_app.message_popup.show_message("Mascot turned on", duration_ms=1800)
+            return {"ok": True, "action": "show", "message": "Mascot turned on"}
+
+        @self.app.get("/test/popup")
+        def test_popup():
+            self.mascot_app.request_show_message(
+                "Test popup message!dhuiasdhigiasgdfuadsgfkdswgfjsdgfiju bsdjhvcfbuhkdsagfjhsgdfvuhohiudhgiduysfg iuih sduifguhsdg fuysdgf"
+            )
+            return {"ok": True, "action": "test_popup"}
 
 class MascotApp:
     def __init__(self, app: QApplication):
@@ -501,14 +602,44 @@ class MascotApp:
         tray_icon.show()
         return tray_icon
 
+    def _is_port_in_use(self, port: int) -> bool:
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            result = sock.connect_ex(("127.0.0.1", port))
+            return result == 0
+
     def _start_api_server(self) -> None:
+        preferred_port = 8000
+        if self._is_port_in_use(preferred_port):
+            print(
+                f"[WARNING] Port {preferred_port} is already in use. API server will not start."
+            )
+            print(
+                "Please close the other service or restart this app. The mascot UI will still run, but extension API calls will fail until port 8000 is free."
+            )
+            self.api_thread = None
+            return
+
         config = uvicorn.Config(
             self.api.app,
             host="127.0.0.1",
-            port=8000,
+            port=preferred_port,
             log_level="info",
         )
         server = uvicorn.Server(config)
+
+        def run_server():
+            try:
+                server.run()
+            except Exception as e:
+                print(f"[ERROR] FastAPI server thread failed: {e}")
+            finally:
+                # Only post if animation has been initialised
+                if hasattr(self, "animation"):
+                    with self._command_lock:
+                        self._pending_command = "server_down"
 
         self.api_thread = threading.Thread(
             target=server.run,
@@ -555,7 +686,12 @@ class MascotApp:
             self.swap_action.setText("Swap to mascot_1.png")
 
     def run(self) -> int:
+        self.animation = AnimationController(self.window, self.base_dir)
+        self.window.interrupt_on_user_activity = self.animation.interrupt_on_user_activity
+        self.window.resume_after_user_activity = self.animation.resume_after_user_activity
         self.window.show()
+        # Start with a calm state so random idle animations can appear
+        self.animation.go_calm()
         return self.app.exec()
 
 
