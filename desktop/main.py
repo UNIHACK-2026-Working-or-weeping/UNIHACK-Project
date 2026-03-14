@@ -1,6 +1,7 @@
 import queue
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntFlag, auto
 from pathlib import Path
@@ -10,8 +11,15 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from PySide6.QtCore import QObject, QSize, QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap, QTransform
+from PySide6.QtCore import QObject, QPoint, QRect, QSize, Qt, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QGuiApplication,
+    QIcon,
+    QMouseEvent,
+    QPixmap,
+    QTransform,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -29,7 +37,14 @@ except ImportError:
     print("Llama.cpp not installed, disabled AI features")
     ai_features_enabled = False
 
-from animation import AnimationController
+    def getMessage(domain: str, event: str | None = None) -> str:
+        return "Generic passive aggressive quote goes here"
+
+    def generateAndPlaySound(message: str) -> None:
+        return None
+
+
+from animation import AnimationController, AnimationMode
 
 
 class ResizeRegion(IntFlag):
@@ -85,10 +100,10 @@ class MascotWindow(QWidget):
         self.label.setMouseTracking(True)
 
         self._last_pixmap_size = QSize(0, 0)
-        self.flipped = False # Avatar faces left
+        self.flipped = False  # Avatar faces left
 
-        self.interrupt_on_user_activity = None
-        self.resume_after_user_activity = None
+        self.interrupt_on_user_activity: Callable[[], None] | None = None
+        self.resume_after_user_activity: Callable[[], None] | None = None
 
         self.set_image(image_path)
 
@@ -108,7 +123,7 @@ class MascotWindow(QWidget):
 
         if self.size().width() <= 1 or self.size().height() <= 1:
             self.resize(self.pixmap.size())
-        elif (                                                  # <-- guard restored
+        elif (  # <-- guard restored
             self.pixmap.width() != self._last_pixmap_size.width()
             or self.pixmap.height() != self._last_pixmap_size.height()
         ):
@@ -120,7 +135,7 @@ class MascotWindow(QWidget):
 
         self.alpha_image = Image.open(path).convert("RGBA")
         self._update_min_size_from_image()
-    
+
         self._last_pixmap_size = self.pixmap.size()
 
     def _update_min_size_from_image(self) -> None:
@@ -187,8 +202,17 @@ class MascotWindow(QWidget):
         if mapped is None or self.alpha_image is None:
             return False
         x, y = mapped
-        _, _, _, a = self.alpha_image.getpixel((x, y))
-        return a > alpha_threshold
+        pixel = self.alpha_image.getpixel((x, y))
+        if isinstance(pixel, tuple):
+            if len(pixel) >= 4:
+                alpha = pixel[3]
+                if alpha is None:
+                    return False
+                return alpha > alpha_threshold
+            return True
+        if pixel is None:
+            return False
+        return pixel > alpha_threshold
 
     def _hit_test_resize_region(self, pos: QPoint) -> ResizeRegion:
         r = self.rect()
@@ -322,7 +346,9 @@ class MascotWindow(QWidget):
             event.accept()
             return
 
-        if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):  # <-- was is_opaque_at check
+        if self._is_dragging and (
+            event.buttons() & Qt.MouseButton.LeftButton
+        ):  # <-- was is_opaque_at check
             self.move(event.globalPosition().toPoint() - self.drag_offset)
             event.accept()
             return
@@ -587,6 +613,7 @@ class MascotApp(QObject):
         self.app_icon = self.base_dir / "mascot_logo.png"
         self.default_image = self.base_dir / "mascot/v2/default_1.png"
         self.is_angry = False
+        self.animation_mode = AnimationMode.V2
 
         self.window = MascotWindow(str(self.default_image))
         self.window.resize(200, 200)
@@ -633,6 +660,14 @@ class MascotApp(QObject):
         toggle_voice_action.setChecked(self.voice_enabled)
         toggle_voice_action.triggered.connect(self.toggle_voice)
         menu.addAction(toggle_voice_action)
+
+        toggle_legacy_animation_action = QAction("Use Alternate Costume", menu)
+        toggle_legacy_animation_action.setCheckable(True)
+        toggle_legacy_animation_action.setChecked(
+            self.animation_mode == AnimationMode.V1
+        )
+        toggle_legacy_animation_action.toggled.connect(self.toggle_animation_version)
+        menu.addAction(toggle_legacy_animation_action)
 
         menu.addSeparator()
 
@@ -691,6 +726,11 @@ class MascotApp(QObject):
         with self._voice_lock:
             return self.voice_enabled
 
+    def toggle_animation_version(self, checked: bool) -> None:
+        self.animation_mode = AnimationMode.V1 if checked else AnimationMode.V2
+        if hasattr(self, "animation"):
+            self.animation.set_mode(self.animation_mode)
+
     def _process_pending_command(self) -> None:
         cmd = None
         with self._command_lock:
@@ -705,7 +745,7 @@ class MascotApp(QObject):
         elif cmd == "make_angry":
             self.get_angry()
         elif cmd == "server_down":
-            self.command_timer.stop() 
+            self.command_timer.stop()
             self.animation.deactivate()
 
         msg = None
@@ -727,9 +767,15 @@ class MascotApp(QObject):
 
     def run(self) -> int:
         self.window.show()
-        self.animation = AnimationController(self.window, self.base_dir)
-        self.window.interrupt_on_user_activity = self.animation.interrupt_on_user_activity
-        self.window.resume_after_user_activity = self.animation.resume_after_user_activity
+        self.animation = AnimationController(
+            self.window, self.base_dir, mode=self.animation_mode
+        )
+        self.window.interrupt_on_user_activity = (
+            self.animation.interrupt_on_user_activity
+        )
+        self.window.resume_after_user_activity = (
+            self.animation.resume_after_user_activity
+        )
         return self.app.exec()
 
 
