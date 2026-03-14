@@ -103,7 +103,7 @@ function changeMascotImage() {
   const mascotImage = document.querySelector('img[src*="mascot.png"]');
   
   if (mascotImage) {
-    mascotImage.src = mascotImage.src.replace('mascot.png', 'mascot-smile.png');
+    mascotImage.src = mascotImage.src.replace('mascot.png', 'mascot_smile.png');
   } else {
     console.log("Mascot image not found.");
   }
