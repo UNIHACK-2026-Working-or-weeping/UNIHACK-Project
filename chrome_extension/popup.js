@@ -146,4 +146,45 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   loadDomains();
+
+  const tabV1 = document.getElementById("tabV1");
+  const tabV2 = document.getElementById("tabV2");
+
+  async function sendAvatarRequest(version) {
+    try {
+      await fetch("http://localhost:8000/avatar/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version }),
+      });
+    } catch (error) {
+      console.error("Failed to send avatar request:", error);
+    }
+  }
+
+  // Restore saved state on popup open
+  chrome.storage.local.get("avatarVersion", ({ avatarVersion }) => {
+    if (avatarVersion === "v1") {
+      tabV1.classList.add("active");
+      tabV2.classList.remove("active");
+    } else if (avatarVersion === "v2") {
+      tabV2.classList.add("active");
+      tabV1.classList.remove("active");
+    }
+  });
+
+  tabV1.addEventListener("click", () => {
+    tabV1.classList.add("active");
+    tabV2.classList.remove("active");
+    chrome.storage.local.set({ avatarVersion: "v1" });
+    sendAvatarRequest("v1");
+  });
+
+  tabV2.addEventListener("click", () => {
+    tabV2.classList.add("active");
+    tabV1.classList.remove("active");
+    chrome.storage.local.set({ avatarVersion: "v2" });
+    sendAvatarRequest("v2");
+  });
+
 });

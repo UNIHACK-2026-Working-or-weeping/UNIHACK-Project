@@ -186,6 +186,91 @@
       line-height: 2;
     }
 
+    .avatar-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .avatar-label {
+      font-size: 8px;
+      color: #6fe41050;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: color 0.1s;
+    }
+
+    .avatar-label.active {
+      color: #6fe410;
+    }
+
+    .pixel-toggle {
+      position: relative;
+      width: 52px;
+      height: 20px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .pixel-toggle input {
+      display: none;
+    }
+
+    .pixel-track {
+      position: absolute;
+      inset: 0;
+      background: #06120a;
+      border: 2px solid #6fe41050;
+      box-shadow: inset 2px 2px 0 #04100a;
+    }
+
+    .pixel-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 12px;
+      background: #6fe410;
+      box-shadow: 2px 2px 0 #173404;
+      transition: left 0.1s steps(4);
+    }
+
+    .pixel-toggle input:checked ~ .pixel-track .pixel-thumb {
+      left: 26px;
+    }
+
+    .avatar-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 4px;
+    }
+
+    .avatar-tab {
+      flex: 1;
+      background: #06120a;
+      border: 2px solid #6fe41050;
+      color: #6fe41080;
+      font-size: 8px;
+      padding: 8px 0;
+      text-align: center;
+      cursor: pointer;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      box-shadow: 2px 2px 0 #0a1a0a;
+    }
+
+    .avatar-tab:hover {
+      color: #6fe410;
+      background: #0f2a0f;
+    }
+
+    .avatar-tab.active {
+      background: #6fe41020;
+      border-color: #6fe410;
+      color: #6fe410;
+    }
+
     .blink { animation: blink 1s step-end infinite; }
     @keyframes blink { 50% { opacity: 0; } }
   </style>
@@ -220,6 +305,14 @@
     
       <span class="input-label">Added Domains</span>
       <div class="domain-list" id="domainList"></div>
+
+      <hr class="divider">
+
+      <span class="input-label">Avatar</span>
+      <div class="avatar-tabs">
+        <div class="avatar-tab" id="tabV1">V1</div>
+        <div class="avatar-tab" id="tabV2">V2</div>
+      </div>
     </main>
   </div>
   <script src="popup.js"></script>

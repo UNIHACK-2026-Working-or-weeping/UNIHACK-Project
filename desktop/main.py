@@ -537,6 +537,9 @@ class FastAPIController:
         class SetTeethRequest(BaseModel):
             domain: str | None = None
 
+        class SetAvatarRequest(BaseModel):
+            version: str
+
         @self.app.get("/health")
         def health():
             return {"status": "ok"}
@@ -608,6 +611,17 @@ class FastAPIController:
             )
             return {"ok": True, "action": "test_popup"}
 
+        @self.app.post("/avatar/set")
+        def set_avatar(payload: SetAvatarRequest):
+            version = payload.version.strip().lower()
+            if version not in {"v1", "v2"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid version. Use 'v1' or 'v2'.",
+                )
+            mode = AnimationMode.V1 if version == "v1" else AnimationMode.V2
+            self.mascot_app.toggle_animation_version(mode == AnimationMode.V1)
+            return {"ok": True, "action": "set_avatar", "version": version}
 
 class MascotApp(QObject):
     def __init__(self, app: QApplication):
