@@ -17,9 +17,9 @@ class IdleAnimation:
         self.window = window
 
         self.sprites = {
-            "default": base_dir / "mascot/mascot_centre.png",
-            "left": base_dir / "mascot/mascot_left.png",
-            "right": base_dir / "mascot/mascot_right.png",
+            "default": base_dir / "mascot/old/mascot_centre.png",
+            "left": base_dir / "mascot/old/mascot_left.png",
+            "right": base_dir / "mascot/old/mascot_right.png",
         }
 
         self._playing = False

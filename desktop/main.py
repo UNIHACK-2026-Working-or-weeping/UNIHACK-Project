@@ -458,8 +458,8 @@ class MascotApp:
     def __init__(self, app: QApplication):
         self.app = app
         self.base_dir = Path(__file__).parent
-        self.default_image = self.base_dir / "mascot.png"
-        self.teeth_image = self.base_dir / "mascot_1.png"
+        self.default_image = self.base_dir / "mascot/old/mascot.png"
+        self.teeth_image = self.base_dir / "mascot/old/mascot_1.png"
         self.using_teeth = False
 
         self.window = MascotWindow(str(self.default_image))
