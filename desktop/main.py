@@ -29,6 +29,7 @@ except ImportError:
     print("Llama.cpp not installed, disabled AI features")
     ai_features_enabled = False
 
+from idle import IdleAnimation
 
 class ResizeRegion(IntFlag):
     NONE = 0
@@ -80,6 +81,8 @@ class MascotWindow(QWidget):
         self.setMouseTracking(True)
         self.label.setMouseTracking(True)
 
+        self.on_activity_callback = None
+
         self.set_image(image_path)
 
     def set_image(self, image_path: str | Path) -> None:
@@ -128,6 +131,8 @@ class MascotWindow(QWidget):
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def resizeEvent(self, event) -> None:
+        if self.on_activity_callback:
+            self.on_activity_callback()
         super().resizeEvent(event)
         self._update_scaled_label()
 
@@ -237,6 +242,9 @@ class MascotWindow(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.on_activity_callback:
+                self.on_activity_callback()
+            
             local_pos = event.position().toPoint()
 
             if (
@@ -285,6 +293,9 @@ class MascotWindow(QWidget):
         event.ignore()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self.on_activity_callback:
+            self.on_activity_callback()
+        
         local_pos = event.position().toPoint()
 
         if self._is_scaling and (event.buttons() & Qt.MouseButton.LeftButton):
@@ -579,6 +590,8 @@ class MascotApp:
 
     def run(self) -> int:
         self.window.show()
+        self.idle_anim = IdleAnimation(self.window, self.base_dir)
+        self.window.on_activity_callback = self.idle_anim.on_user_activity
         return self.app.exec()
 
 
