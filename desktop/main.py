@@ -6,7 +6,7 @@ from enum import IntFlag, auto
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 try:
     from ai_inference import ensure_model_exists, getMessage
 
+    ensure_model_exists()
     ai_features_enabled = True
 except ImportError:
     print("Llama.cpp not installed, disabled AI features")
@@ -439,13 +440,18 @@ class FastAPIController:
             return {"ok": True, "action": "set_default"}
 
         @self.app.post("/image/teeth")
-        def set_teeth(payload: SetTeethRequest):
-            if payload.domain:
-                if ai_features_enabled:
-                    print("Generic Passive Aggressive Quote goes herre")
-                else:
-                    print(getMessage(payload.domain))
-            self.mascot_app.request_set_named_image("teeth")
+        def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
+
+            def process_teeth_async(domain: str | None):
+                if payload.domain:
+                    if not ai_features_enabled:
+                        print("Generic Passive Aggressive Quote goes herre")
+                        self.mascot_app.request_set_named_image("teeth")
+                    else:
+                        print(getMessage(payload.domain))
+                self.mascot_app.request_set_named_image("teeth")
+
+            background_tasks.add_task(process_teeth_async, payload.domain)
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
