@@ -11,6 +11,13 @@ const defaultDomains = [
   "youtube.com",
   "twitch.tv",
 ];
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.get("defaultDomains", function(result) {
+    if (!result.defaultDomains) { 
+      chrome.storage.local.set({ defaultDomains });
+    }
+  });
+});
 
 let customDomains = [];
 let previousTabId = null;
@@ -77,6 +84,17 @@ function isSocialMediaUrl(url) {
     return false;
   }
 }
+
+function changeMascotImage() {
+  const mascotImage = document.querySelector('img[src*="mascot.png"]');
+  
+  if (mascotImage) {
+    mascotImage.src = mascotImage.src.replace('mascot.png', 'mascot-smile.png');
+  } else {
+    console.log("Mascot image not found.");
+  }
+}
+
 
 console.log("background loaded");
 console.log("chrome.contextMenus =", chrome.contextMenus);
