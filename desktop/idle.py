@@ -11,7 +11,7 @@ class IdleAnimation:
     """
 
     INACTIVITY_TIMEOUT_MS = 5000
-    FRAME_DURATION_MS = 500
+    FRAME_DURATION_MS = 3000
 
     # Sequence of named sprites to play (default is restored after)
     SEQUENCE = ["left", "right"]

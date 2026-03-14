@@ -50,10 +50,13 @@ document.addEventListener("DOMContentLoaded", function () {
         let customDomains = result.customDomains || [];
         if (!customDomains.includes(hostname)) {
           customDomains.push(hostname);
-          chrome.storage.local.set({ customDomains: customDomains }, function () {
-            domainInput.value = "";
-            loadDomains();
-          });
+          chrome.storage.local.set(
+            { customDomains: customDomains },
+            function () {
+              domainInput.value = "";
+              loadDomains();
+            },
+          );
         }
       });
     } catch (e) {

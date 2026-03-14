@@ -81,12 +81,18 @@ async function executeTeethRequest(domain) {
 
 async function sendDefaultRequest() {
   try {
-    await fetch("http://localhost:8000/image/calm", {
+    console.log("sendDefaultRequest: Sending request to /image/calm");
+    const response = await fetch("http://localhost:8000/image/calm", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
     });
+    console.log(
+      "sendDefaultRequest: Response received",
+      response.status,
+      response.statusText,
+    );
   } catch (error) {
     console.error("Failed to send POST request:", error);
   }
