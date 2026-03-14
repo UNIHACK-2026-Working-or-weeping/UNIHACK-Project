@@ -37,15 +37,16 @@ function getAllDomains() {
   return [...defaultDomains, ...customDomains];
 }
 
-async function sendTeethRequest() {
+async function sendTeethRequest(domain) {
   try {
     await fetch("http://localhost:8000/image/teeth", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ domain: domain }),
     });
-    console.log("TEETH");
+    console.log("TEETH", domain);
   } catch (error) {
     console.error("Failed to send POST request:", error);
   }
@@ -112,7 +113,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
   if (changeInfo.status === "complete" && tab.url) {
     if (isSocialMediaUrl(tab.url)) {
-      sendTeethRequest();
+      const hostname = new URL(tab.url).hostname.toLowerCase();
+      sendTeethRequest(hostname);
     }
   }
 });
@@ -132,7 +134,8 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     }
 
     if (currentTab.url && isSocialMediaUrl(currentTab.url)) {
-      sendTeethRequest();
+      const hostname = new URL(currentTab.url).hostname.toLowerCase();
+      sendTeethRequest(hostname);
     }
 
     previousTabId = activeInfo.tabId;
