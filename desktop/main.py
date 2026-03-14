@@ -460,9 +460,9 @@ class FastAPIController:
                         print("Generic Passive Aggressive Quote goes herre")
                         self.mascot_app.get_angry()
                     else:
-                        generateAndPlaySound(getMessage(payload.domain))
-
-                self.mascot_app.get_angry()
+                        message = getMessage(payload.domain)
+                        self.mascot_app.get_angry()
+                        generateAndPlaySound(message)
 
             background_tasks.add_task(process_teeth_async, payload.domain)
             return {"ok": True, "action": "set_teeth"}
