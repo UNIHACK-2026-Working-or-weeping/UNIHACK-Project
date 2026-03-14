@@ -584,6 +584,7 @@ class MascotApp(QObject):
         super().__init__()
         self.app = app
         self.base_dir = Path(__file__).parent
+        self.app_icon = self.base_dir / "mascot_logo.png"
         self.default_image = self.base_dir / "mascot/v2/default_1.png"
         self.is_angry = False
 
@@ -621,11 +622,7 @@ class MascotApp(QObject):
 
     def _create_tray_icon(self) -> QSystemTrayIcon:
         tray_icon = QSystemTrayIcon(self.app)
-        icon = QIcon(str(self.icon))
-        if icon.isNull():
-            icon = self.app.style().standardIcon(
-                self.app.style().StandardPixmap.SP_ComputerIcon
-            )
+        icon = QIcon(str(self.app_icon))
         tray_icon.setIcon(icon)
         tray_icon.setToolTip("Mascot App")
 
