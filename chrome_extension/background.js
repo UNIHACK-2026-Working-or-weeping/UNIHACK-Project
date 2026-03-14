@@ -59,7 +59,7 @@ async function sendTeethRequest(domain, tabId) {
     const timerId = setTimeout(() => {
       executeTeethRequest(domain);
       pendingTimers.delete(tabId);
-    }, 60000);
+    }, 10000);
     pendingTimers.set(tabId, timerId);
   }
 }
