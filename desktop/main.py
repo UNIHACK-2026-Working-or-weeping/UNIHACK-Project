@@ -441,9 +441,9 @@ class FastAPIController:
                 "is_angry": self.mascot_app.is_angry,
             }
 
-        @self.app.post("/image/toggle")
+        @self.app.post("/image/calm")
         def toggle_image():
-            self.mascot_app.request_toggle()
+            self.mascot_app.get_calm()
             return {"ok": True, "action": "toggle"}
 
         @self.app.post("/image/default")
@@ -451,18 +451,18 @@ class FastAPIController:
             self.mascot_app.request_set_named_image("default")
             return {"ok": True, "action": "set_default"}
 
-        @self.app.post("/image/teeth")
+        @self.app.post("/image/angry")
         def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
 
             def process_teeth_async(domain: str | None):
                 if payload.domain:
                     if not ai_features_enabled:
                         print("Generic Passive Aggressive Quote goes herre")
-                        self.mascot_app.request_set_named_image("teeth")
+                        self.mascot_app.get_angry()
                     else:
                         generateAndPlaySound(getMessage(payload.domain))
 
-                self.mascot_app.request_set_named_image("teeth")
+                self.mascot_app.get_angry()
 
             background_tasks.add_task(process_teeth_async, payload.domain)
             return {"ok": True, "action": "set_teeth"}
@@ -525,9 +525,9 @@ class MascotApp:
 
         menu = QMenu()
 
-        self.swap_action = QAction("Swap mascot.png", menu)
-        self.swap_action.triggered.connect(self.toggle_image)
-        menu.addAction(self.swap_action)
+        # self.swap_action = QAction("Swap mascot.png", menu)
+        # self.swap_action.triggered.connect(self.toggle_image)
+        # menu.addAction(self.swap_action)
 
         menu.addSeparator()
 
@@ -559,6 +559,10 @@ class MascotApp:
         with self._command_lock:
             self._pending_command = "toggle"
 
+    def request_angry(self) -> None:
+        with self._command_lock:
+            self._pending_command = "make_angry"
+
     def request_set_named_image(self, image_name: str) -> None:
         with self._command_lock:
             self._pending_command = image_name
@@ -573,39 +577,27 @@ class MascotApp:
         if cmd is None:
             return
 
-        if cmd == "toggle":
-            self.toggle_image()
-        elif cmd == "default":
-            if self.is_angry:
-                self.toggle_image()
+        if cmd == "default":
+            self.get_calm()
         elif cmd == "teeth":
-            if not self.is_angry:
-                self.toggle_image()
+            self.get_angry()
 
-    def toggle_image(self) -> None:
+    def get_angry(self) -> None:
         self.anger_count += 1
-
-        if self.is_angry:
-            self.swap_action.setText("Swap to mascot angry.png")
-            match self.anger_count:
-                case 1 | 2 | 3:
-                    target = self.angry_1_image
-                case _:
-                    target = self.angry_2_image
-        else:
-            target = self.default_image
-
+        self.idle_anim.is_angry = True
+        self.idle_anim.anger_level = self.anger_count
+        # self.swap_action.setText("Swap to mascot default.png")
+        match self.anger_count:
+            case 1 | 2 | 3:
+                target = self.angry_1_image
+            case _:
+                target = self.angry_2_image
         self.window.set_image(target)
-        self.is_angry = not self.is_angry
 
-        if self.is_angry:
-            self.swap_action.setText("Swap to mascot default.png")
-        else:
-            match self.anger_count:
-                case 1:
-                    pass
-                case _:
-                    self.swap_action.setText("Swap to mascot angry.png")
+    def get_calm(self) -> None:
+        self.idle_anim.is_angry = False
+        target = self.default_image
+        self.window.set_image(target)
 
     def run(self) -> int:
         self.window.show()

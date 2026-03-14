@@ -1,4 +1,4 @@
-const DISABLE_TIMER = false;
+const DISABLE_TIMER = true;
 
 const defaultDomains = [
   "facebook.com",
@@ -59,7 +59,7 @@ async function sendTeethRequest(domain, tabId) {
 
 async function executeTeethRequest(domain) {
   try {
-    await fetch("http://localhost:8000/image/teeth", {
+    await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -74,7 +74,7 @@ async function executeTeethRequest(domain) {
 
 async function sendDefaultRequest() {
   try {
-    await fetch("http://localhost:8000/image/default", {
+    await fetch("http://localhost:8000/image/calm", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
