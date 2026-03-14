@@ -1,4 +1,4 @@
-const DISABLE_TIMER = true;
+const DISABLE_TIMER = false;
 
 const defaultDomains = [
   "facebook.com",
@@ -27,7 +27,11 @@ const pendingTimers = new Map();
 
 function normalizeDomain(domain) {
   if (!domain) return "";
-  return String(domain).trim().toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+  return String(domain)
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^www\./, "");
 }
 
 async function getCustomDomains() {
