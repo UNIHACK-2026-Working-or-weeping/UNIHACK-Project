@@ -10,8 +10,8 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from PySide6.QtCore import QObject, QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap
+from PySide6.QtCore import QObject, QSize, QPoint, QRect, Qt, QTimer
+from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -29,7 +29,7 @@ except ImportError:
     print("Llama.cpp not installed, disabled AI features")
     ai_features_enabled = False
 
-from idle import IdleAnimation
+from animation import AnimationController
 
 
 class ResizeRegion(IntFlag):
@@ -78,11 +78,17 @@ class MascotWindow(QWidget):
         self._scale_start_geometry = QRect()
         self._scale_start_center = QPoint()
 
+        self._is_dragging = False
+
         self.setMinimumSize(self.min_w, self.min_h)
         self.setMouseTracking(True)
         self.label.setMouseTracking(True)
 
-        self.on_activity_callback = None
+        self._last_pixmap_size = QSize(0, 0)
+        self.flipped = False # Avatar faces left
+
+        self.interrupt_on_user_activity = None
+        self.resume_after_user_activity = None
 
         self.set_image(image_path)
 
@@ -102,7 +108,10 @@ class MascotWindow(QWidget):
 
         if self.size().width() <= 1 or self.size().height() <= 1:
             self.resize(self.pixmap.size())
-        else:
+        elif (                                                  # <-- guard restored
+            self.pixmap.width() != self._last_pixmap_size.width()
+            or self.pixmap.height() != self._last_pixmap_size.height()
+        ):
             self._apply_aspect_resize_from_size(
                 self.width(), self.height(), keep_center=True
             )
@@ -111,6 +120,8 @@ class MascotWindow(QWidget):
 
         self.alpha_image = Image.open(path).convert("RGBA")
         self._update_min_size_from_image()
+    
+        self._last_pixmap_size = self.pixmap.size()
 
     def _update_min_size_from_image(self) -> None:
         if self.pixmap.isNull():
@@ -127,13 +138,13 @@ class MascotWindow(QWidget):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
+        if self.flipped:
+            scaled = scaled.transformed(QTransform().scale(-1, 1))
         self.label.setPixmap(scaled)
         self.label.resize(self.size())
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def resizeEvent(self, event) -> None:
-        if self.on_activity_callback:
-            self.on_activity_callback()
         super().resizeEvent(event)
         self._update_scaled_label()
 
@@ -243,9 +254,6 @@ class MascotWindow(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.on_activity_callback:
-                self.on_activity_callback()
-
             local_pos = event.position().toPoint()
 
             if (
@@ -256,6 +264,8 @@ class MascotWindow(QWidget):
                 self._scale_start_geometry = self.geometry()
                 self._scale_start_center = self.geometry().center()
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
+                if self.interrupt_on_user_activity:
+                    self.interrupt_on_user_activity()
                 event.accept()
                 return
 
@@ -282,21 +292,24 @@ class MascotWindow(QWidget):
 
                 self._resize_anchor = QPoint(anchor_x, anchor_y)
                 self.setCursor(self._cursor_for_region(region))
+                if self.interrupt_on_user_activity:
+                    self.interrupt_on_user_activity()
                 event.accept()
                 return
 
             if self.is_opaque_at(local_pos):
+                self._is_dragging = True
                 self.drag_offset = (
                     event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 )
+                if self.interrupt_on_user_activity:
+                    self.interrupt_on_user_activity()
                 event.accept()
                 return
+
         event.ignore()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self.on_activity_callback:
-            self.on_activity_callback()
-
         local_pos = event.position().toPoint()
 
         if self._is_scaling and (event.buttons() & Qt.MouseButton.LeftButton):
@@ -309,12 +322,12 @@ class MascotWindow(QWidget):
             event.accept()
             return
 
-        if event.buttons() & Qt.MouseButton.LeftButton:
-            if self.is_opaque_at(local_pos):
-                self.move(event.globalPosition().toPoint() - self.drag_offset)
-                event.accept()
-                return
-        else:
+        if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):  # <-- was is_opaque_at check
+            self.move(event.globalPosition().toPoint() - self.drag_offset)
+            event.accept()
+            return
+
+        if not event.buttons() & Qt.MouseButton.LeftButton:
             region = self._hit_test_resize_region(local_pos)
             self.setCursor(self._cursor_for_region(region))
 
@@ -325,12 +338,23 @@ class MascotWindow(QWidget):
             if self._is_scaling:
                 self._is_scaling = False
                 self.setCursor(Qt.CursorShape.ArrowCursor)
+                if self.resume_after_user_activity:
+                    self.resume_after_user_activity()
                 event.accept()
                 return
             if self._is_resizing:
                 self._is_resizing = False
                 self._resize_region = ResizeRegion.NONE
                 self.setCursor(Qt.CursorShape.ArrowCursor)
+                if self.resume_after_user_activity:
+                    self.resume_after_user_activity()
+                event.accept()
+                return
+            if self._is_dragging:
+                self._is_dragging = False
+                self.drag_offset = QPoint()
+                if self.resume_after_user_activity:
+                    self.resume_after_user_activity()
                 event.accept()
                 return
         super().mouseReleaseEvent(event)
@@ -522,14 +546,13 @@ class FastAPIController:
                     if payload.domain:
                         if not ai_features_enabled:
                             print("Generic Passive Aggressive Quote goes herre")
-                            self.mascot_app.get_angry()
+                            self.mascot_app.request_angry()
                         else:
                             message = getMessage(payload.domain)
-                            self.mascot_app.get_angry()
+                            self.mascot_app.request_angry()
                             self.mascot_app.request_show_message(message)
                             if self.mascot_app.get_voice_enabled():
                                 generateAndPlaySound(message)
-
                     self.already_queued = False
 
                 self.already_queued = True
@@ -560,11 +583,8 @@ class MascotApp(QObject):
     def __init__(self, app: QApplication):
         super().__init__()
         self.app = app
-        self.anger_count = 0
         self.base_dir = Path(__file__).parent
-        self.default_image = self.base_dir / "mascot/mascot_centre.png"
-        self.angry_1_image = self.base_dir / "mascot/mascot_frown.png"
-        self.angry_2_image = self.base_dir / "mascot/mascot_smile.png"
+        self.default_image = self.base_dir / "mascot/v2/default_1.png"
         self.is_angry = False
 
         self.window = MascotWindow(str(self.default_image))
@@ -636,8 +656,15 @@ class MascotApp(QObject):
         )
         server = uvicorn.Server(config)
 
+        def run_server():
+            server.run()
+            # Only post if animation has been initialised
+            if hasattr(self, "animation"):
+                with self._command_lock:
+                    self._pending_command = "server_down"
+
         self.api_thread = threading.Thread(
-            target=server.run,
+            target=run_server,
             daemon=True,
             name="fastapi-server-thread",
         )
@@ -674,11 +701,15 @@ class MascotApp(QObject):
                 cmd = self._pending_command
                 self._pending_command = None
 
-        if cmd is not None:
-            if cmd == "default":
-                self.get_calm()
-            elif cmd == "teeth":
-                self.get_angry()
+        if cmd == "default":
+            self.get_calm()
+        elif cmd == "teeth":
+            self.get_angry()
+        elif cmd == "make_angry":
+            self.get_angry()
+        elif cmd == "server_down":
+            self.command_timer.stop() 
+            self.animation.deactivate()
 
         msg = None
         with self._message_lock:
@@ -690,26 +721,18 @@ class MascotApp(QObject):
             self.message_popup.show_message(msg)
 
     def get_angry(self) -> None:
-        self.anger_count += 1
-        self.idle_anim.is_angry = True
-        self.idle_anim.anger_level = self.anger_count
-        # self.swap_action.setText("Swap to mascot default.png")
-        match self.anger_count:
-            case 1 | 2 | 3:
-                target = self.angry_1_image
-            case _:
-                target = self.angry_2_image
-        self.window.set_image(target)
+        self.is_angry = True
+        self.animation.go_mad()
 
     def get_calm(self) -> None:
-        self.idle_anim.is_angry = False
-        target = self.default_image
-        self.window.set_image(target)
+        self.is_angry = False
+        self.animation.go_calm()
 
     def run(self) -> int:
         self.window.show()
-        self.idle_anim = IdleAnimation(self.window, self.base_dir)
-        self.window.on_activity_callback = self.idle_anim.on_user_activity
+        self.animation = AnimationController(self.window, self.base_dir)
+        self.window.interrupt_on_user_activity = self.animation.interrupt_on_user_activity
+        self.window.resume_after_user_activity = self.animation.resume_after_user_activity
         return self.app.exec()
 
 
