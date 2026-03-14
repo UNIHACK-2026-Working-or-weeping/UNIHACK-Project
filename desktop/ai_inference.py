@@ -3,7 +3,11 @@ import os
 from typing import Any, Dict, Optional
 from urllib.request import urlretrieve
 
+import soundfile as sf
+import torch
 from llama_cpp import Llama
+from playsound3 import playsound
+from qwen_tts import Qwen3TTSModel
 
 
 def ensure_model_exists(
@@ -89,7 +93,7 @@ def getMessage(domain: str) -> str:
         "instead of plain text. Ensure the 'response' argument contains the complete final answer. "
     )
 
-    user_prompt = f"Create a very passive aggressive message to encourage a user to stop browsing {domain}"
+    user_prompt = f"Create an extremely passive aggressive message to encourage a user to stop browsing {domain}"
 
     tools = [
         {
@@ -163,7 +167,44 @@ def getMessage(domain: str) -> str:
     return "Don't you have anything better to do"
 
 
+"""
+    Vivian 	Bright, slightly edgy young female voice. 	Chinese
+    Serena 	Warm, gentle young female voice. 	Chinese
+    Uncle_Fu 	Seasoned male voice with a low, mellow timbre. 	Chinese
+    Dylan 	Youthful Beijing male voice with a clear, natural timbre. 	Chinese (Beijing Dialect)
+    Eric 	Lively Chengdu male voice with a slightly husky brightness. 	Chinese (Sichuan Dialect)
+    Ryan 	Dynamic male voice with strong rhythmic drive. 	English
+    Aiden 	Sunny American male voice with a clear midrange. 	English
+    Ono_Anna 	Playful Japanese female voice with a light, nimble timbre. 	Japanese
+    Sohee 	Warm Korean female voice with rich emotion. 	Korean
+"""
+
+
+def generateAndPlaySound(message: str):
+    model = Qwen3TTSModel.from_pretrained(
+        "models/Qwen3-TTS-12Hz-0.6B-Base",
+        device_map="auto",
+        dtype=torch.bfloat16,
+        # attn_implementation="flash_attention_2",
+    )
+    ref_audio = "test_voice.mp3"
+    ref_text = "Imagine a dark place. Or a suspensful situation, or imagine your own scenario for my voice."
+
+    # single inference
+    wavs, sr = model.generate_voice_clone(
+        text=message,
+        language="English",
+        ref_audio=ref_audio,
+        ref_text=ref_text,
+        # speaker=speaker,
+        # instruct="Sound like a high pitched jolly fun mascot",  # Omit if not needed.
+    )
+    sf.write("output_custom_voice.wav", wavs[0], sr)
+    playsound("output_custom_voice.wav")
+
+
 if __name__ == "__main__":
     ensure_model_exists()
     # Testing
-    getMessage("facebook")
+    message = getMessage("facebook")
+    generateAndPlaySound(message)
