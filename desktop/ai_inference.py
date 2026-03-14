@@ -1,6 +1,7 @@
 import json
 import os
-from typing import Any, Dict, Optional
+import threading
+from typing import Optional
 from urllib.request import urlretrieve
 
 import soundfile as sf
@@ -74,7 +75,7 @@ def submit_best_response(response: str, confidence: Optional[float] = None) -> s
     return payload["response"]
 
 
-def getMessage(domain: str) -> str:
+def getMessage(domain: str, event: Optional[str] = None) -> str:
     llm = Llama(
         model_path="./models/Qwen3.5-0.8B-IQ4_XS.gguf",
         # n_gpu_layers=-1,  # Uncomment to use GPU acceleration
@@ -93,7 +94,10 @@ def getMessage(domain: str) -> str:
         "instead of plain text. Ensure the 'response' argument contains the complete final answer. "
     )
 
-    user_prompt = f"Create an extremely passive aggressive message to encourage a user to stop browsing {domain}"
+    if event is not None:
+        user_prompt = f"Create an extremely passive aggressive message to encourage a user to stop browsing {domain}"
+    else:
+        user_prompt = f"Create an extremely passive aggressive message to encourage a user to stop browsing {domain}, at the same time remind them that their next task is {event}"
 
     tools = [
         {
@@ -167,7 +171,8 @@ def getMessage(domain: str) -> str:
     return "Don't you have anything better to do"
 
 
-"""
+def generateAndPlaySound(message: str):
+    """
     Vivian 	Bright, slightly edgy young female voice. 	Chinese
     Serena 	Warm, gentle young female voice. 	Chinese
     Uncle_Fu 	Seasoned male voice with a low, mellow timbre. 	Chinese
@@ -177,10 +182,7 @@ def getMessage(domain: str) -> str:
     Aiden 	Sunny American male voice with a clear midrange. 	English
     Ono_Anna 	Playful Japanese female voice with a light, nimble timbre. 	Japanese
     Sohee 	Warm Korean female voice with rich emotion. 	Korean
-"""
-
-
-def generateAndPlaySound(message: str):
+    """
     model = Qwen3TTSModel.from_pretrained(
         "models/Qwen3-TTS-12Hz-0.6B-Base",
         device_map="auto",
@@ -201,6 +203,10 @@ def generateAndPlaySound(message: str):
     )
     sf.write("output_custom_voice.wav", wavs[0], sr)
     playsound("output_custom_voice.wav")
+    # sound_thread = threading.Thread(
+    #     target=playsound, args=("output_custom_voice.wav",), daemon=True
+    # )
+    # sound_thread.start()
 
 
 if __name__ == "__main__":

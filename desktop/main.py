@@ -10,7 +10,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from PySide6.QtCore import QObject, QPoint, QRect, Qt, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QPoint, QRect, Qt, QTimer
 from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -515,6 +515,7 @@ class FastAPIController:
 
         @self.app.post("/image/angry")
         def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
+            print(self.already_queued)
             if not self.already_queued:
 
                 def process_teeth_async(domain: str | None):
@@ -525,9 +526,14 @@ class FastAPIController:
                         else:
                             message = getMessage(payload.domain)
                             self.mascot_app.get_angry()
-                            self.mascot_app.message_signal.emit(message)
-                            self.mascot_app.message_signal.emit("message")
-                            generateAndPlaySound(message)
+                            self.mascot_app.request_show_message(message)
+                            sound_thread = threading.Thread(
+                                target=generateAndPlaySound,
+                                args=(message,),
+                                daemon=True,
+                            )
+                            sound_thread.start()
+
                     self.already_queued = False
 
                 self.already_queued = True
@@ -548,15 +554,13 @@ class FastAPIController:
 
         @self.app.get("/test/popup")
         def test_popup():
-            self.mascot_app.message_signal.emit(
+            self.mascot_app.request_show_message(
                 "Test popup message!dhuiasdhigiasgdfuadsgfkdswgfjsdgfiju bsdjhvcfbuhkdsagfjhsgdfvuhohiudhgiduysfg iuih sduifguhsdg fuysdgf"
             )
             return {"ok": True, "action": "test_popup"}
 
 
 class MascotApp(QObject):
-    message_signal = Signal(str)
-
     def __init__(self, app: QApplication):
         super().__init__()
         self.app = app
@@ -574,10 +578,12 @@ class MascotApp(QObject):
         self.tray = self._create_tray_icon()
 
         self.message_popup = MessagePopup(self.window)
-        self.message_signal.connect(self.message_popup.show_message)
 
         self._pending_command: str | None = None
         self._command_lock = threading.Lock()
+
+        self._pending_message: str | None = None
+        self._message_lock = threading.Lock()
 
         self.api = FastAPIController(self)
         self._start_api_server()
@@ -648,6 +654,10 @@ class MascotApp(QObject):
         with self._command_lock:
             self._pending_command = image_name
 
+    def request_show_message(self, message: str) -> None:
+        with self._message_lock:
+            self._pending_message = message
+
     def _process_pending_command(self) -> None:
         cmd = None
         with self._command_lock:
@@ -655,13 +665,20 @@ class MascotApp(QObject):
                 cmd = self._pending_command
                 self._pending_command = None
 
-        if cmd is None:
-            return
+        if cmd is not None:
+            if cmd == "default":
+                self.get_calm()
+            elif cmd == "teeth":
+                self.get_angry()
 
-        if cmd == "default":
-            self.get_calm()
-        elif cmd == "teeth":
-            self.get_angry()
+        msg = None
+        with self._message_lock:
+            if self._pending_message is not None:
+                msg = self._pending_message
+                self._pending_message = None
+
+        if msg is not None:
+            self.message_popup.show_message(msg)
 
     def get_angry(self) -> None:
         self.anger_count += 1
