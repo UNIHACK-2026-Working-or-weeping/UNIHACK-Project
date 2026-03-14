@@ -10,7 +10,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from PySide6.QtCore import QPoint, QRect, Qt, QTimer
+from PySide6.QtCore import QObject, QPoint, QRect, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QGuiApplication, QIcon, QMouseEvent, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -404,6 +404,67 @@ class MascotWindow(QWidget):
         self.setGeometry(x, y, new_w, new_h)
 
 
+class MessagePopup(QWidget):
+    def __init__(self, mascot_window: MascotWindow):
+        super().__init__()
+        self.mascot_window = mascot_window
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+            | Qt.WindowType.Window
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self.label = QLabel(self)
+        self.label.setStyleSheet("""
+            QLabel {
+                background: rgba(30, 30, 30, 230);
+                border-radius: 12px;
+                padding: 16px;
+                color: white;
+                font-size: 14px;
+            }
+        """)
+        self.label.setWordWrap(True)
+
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide)
+
+        self.hide()
+
+    def show_message(self, message: str) -> None:
+        self.label.setText(message)
+        self.label.adjustSize()
+        self.resize(self.label.size())
+
+        mascot_rect = self.mascot_window.geometry()
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            screen_rect = screen.availableGeometry()
+
+            popup_width = self.width()
+            preferred_x = mascot_rect.left() - popup_width - 20
+
+            if preferred_x < screen_rect.left():
+                x = mascot_rect.right() + 20
+            else:
+                x = preferred_x
+
+            y = mascot_rect.center().y() - self.height() // 2
+
+            x = max(screen_rect.left(), min(x, screen_rect.right() - popup_width))
+            y = max(screen_rect.top(), min(y, screen_rect.bottom() - self.height()))
+        else:
+            x = mascot_rect.left() - self.width() - 20
+            y = mascot_rect.center().y() - self.height() // 2
+
+        self.move(x, y)
+        self.show()
+        self.timer.start(10000)
+
+
 class FastAPIController:
     def __init__(self, mascot_app: "MascotApp"):
         self.mascot_app = mascot_app
@@ -464,6 +525,8 @@ class FastAPIController:
                         else:
                             message = getMessage(payload.domain)
                             self.mascot_app.get_angry()
+                            self.mascot_app.message_signal.emit(message)
+                            self.mascot_app.message_signal.emit("message")
                             generateAndPlaySound(message)
                     self.already_queued = False
 
@@ -483,9 +546,19 @@ class FastAPIController:
             self.mascot_app.request_set_named_image(image_name)
             return {"ok": True, "action": "set_image", "image": image_name}
 
+        @self.app.get("/test/popup")
+        def test_popup():
+            self.mascot_app.message_signal.emit(
+                "Test popup message!dhuiasdhigiasgdfuadsgfkdswgfjsdgfiju bsdjhvcfbuhkdsagfjhsgdfvuhohiudhgiduysfg iuih sduifguhsdg fuysdgf"
+            )
+            return {"ok": True, "action": "test_popup"}
 
-class MascotApp:
+
+class MascotApp(QObject):
+    message_signal = Signal(str)
+
     def __init__(self, app: QApplication):
+        super().__init__()
         self.app = app
         self.anger_count = 0
         self.base_dir = Path(__file__).parent
@@ -499,6 +572,9 @@ class MascotApp:
         self._position_window()
 
         self.tray = self._create_tray_icon()
+
+        self.message_popup = MessagePopup(self.window)
+        self.message_signal.connect(self.message_popup.show_message)
 
         self._pending_command: str | None = None
         self._command_lock = threading.Lock()
