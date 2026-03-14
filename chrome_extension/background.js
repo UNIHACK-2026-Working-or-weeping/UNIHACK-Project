@@ -80,13 +80,16 @@ async function sendTeethRequest(domain, tabId) {
 
 async function executeTeethRequest(domain) {
   try {
+    const { nearestEvent } = await chrome.storage.local.get("nearestEvent");
+    const payload = { domain: domain, event: nearestEvent || null };
+    console.log("[Calendar][Chrome] Sending /image/angry payload", payload);
     console.log("executeTeethRequest: Sending request to /image/angry");
     await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ domain: domain }),
+      body: JSON.stringify(payload),
     });
     console.log("TEETH", domain);
   } catch (error) {
