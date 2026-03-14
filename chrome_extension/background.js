@@ -1,3 +1,5 @@
+const DISABLE_TIMER = false;
+
 const defaultDomains = [
   "facebook.com",
   "twitter.com",
@@ -15,6 +17,7 @@ const defaultDomains = [
 let customDomains = [];
 let previousTabId = null;
 const tabUrlCache = new Map();
+const pendingTimers = new Map();
 
 async function loadCustomDomains() {
   const result = await chrome.storage.local.get("customDomains");
@@ -37,7 +40,24 @@ function getAllDomains() {
   return [...defaultDomains, ...customDomains];
 }
 
-async function sendTeethRequest(domain) {
+async function sendTeethRequest(domain, tabId) {
+  if (pendingTimers.has(tabId)) {
+    clearTimeout(pendingTimers.get(tabId));
+    pendingTimers.delete(tabId);
+  }
+
+  if (DISABLE_TIMER) {
+    await executeTeethRequest(domain);
+  } else {
+    const timerId = setTimeout(() => {
+      executeTeethRequest(domain);
+      pendingTimers.delete(tabId);
+    }, 60000);
+    pendingTimers.set(tabId, timerId);
+  }
+}
+
+async function executeTeethRequest(domain) {
   try {
     await fetch("http://localhost:8000/image/teeth", {
       method: "POST",
@@ -114,7 +134,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
     if (isSocialMediaUrl(tab.url)) {
       const hostname = new URL(tab.url).hostname.toLowerCase();
-      sendTeethRequest(hostname);
+      sendTeethRequest(hostname, tabId);
     }
   }
 });
@@ -125,6 +145,10 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       const previousUrl = tabUrlCache.get(previousTabId);
       if (previousUrl && isSocialMediaUrl(previousUrl)) {
         sendDefaultRequest();
+        if (pendingTimers.has(previousTabId)) {
+          clearTimeout(pendingTimers.get(previousTabId));
+          pendingTimers.delete(previousTabId);
+        }
       }
     }
 
@@ -135,7 +159,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
     if (currentTab.url && isSocialMediaUrl(currentTab.url)) {
       const hostname = new URL(currentTab.url).hostname.toLowerCase();
-      sendTeethRequest(hostname);
+      sendTeethRequest(hostname, activeInfo.tabId);
     }
 
     previousTabId = activeInfo.tabId;
@@ -149,6 +173,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     const url = tabUrlCache.get(tabId);
     if (url && isSocialMediaUrl(url)) {
       sendDefaultRequest();
+      if (pendingTimers.has(tabId)) {
+        clearTimeout(pendingTimers.get(tabId));
+        pendingTimers.delete(tabId);
+      }
     }
     tabUrlCache.delete(tabId);
   } catch (error) {
