@@ -3,11 +3,23 @@
   "name": "Social Media Tracker",
   "version": "1.0",
   "description": "Sends POST request when visiting social media websites",
+  "icons": {
+    "16": "mascot_logo.png",
+    "32": "mascot_logo.png",
+    "48": "mascot_logo.png",
+    "128": "mascot_logo.png"
+  },
   "background": {
     "service_worker": "background.js"
   },
   "permissions": ["tabs", "storage", "contextMenus"],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "mascot_logo.png",
+      "32": "mascot_logo.png",
+      "48": "mascot_logo.png",
+      "128": "mascot_logo.png"
+    }
   }
 }

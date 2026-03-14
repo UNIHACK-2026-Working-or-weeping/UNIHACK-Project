@@ -621,7 +621,7 @@ class MascotApp(QObject):
 
     def _create_tray_icon(self) -> QSystemTrayIcon:
         tray_icon = QSystemTrayIcon(self.app)
-        icon = QIcon(str(self.default_image))
+        icon = QIcon(str(self.icon))
         if icon.isNull():
             icon = self.app.style().standardIcon(
                 self.app.style().StandardPixmap.SP_ComputerIcon
