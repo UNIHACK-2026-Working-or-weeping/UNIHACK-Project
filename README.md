@@ -20,3 +20,6 @@ TODO: FILL OUT THIS PART OF README
   `cd desktop`
 3. Run the program\
     `uv run main.py`
+
+#### Disabling AI Features for local dev
+Comment out `name = "llama-cpp-python"` in `pyproject.toml`
