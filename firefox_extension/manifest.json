@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "Social Media Tracker",
+  "version": "1.0",
+  "description": "Sends POST request when visiting social media websites",
+  "applications": {
+    "gecko": {
+      "id": "social-media-tracker@example.com",
+      "strict_min_version": "109.0"
+    }
+  },
+  "background": {
+    "scripts": ["browser-api.js", "background.js"]
+  },
+  "permissions": ["tabs", "storage", "contextMenus", "webNavigation"],
+  "browser_action": {
+    "default_popup": "popup.html"
+  }
+}

@@ -13,6 +13,11 @@ TODO: FILL OUT THIS PART OF README
 2. Enable Developer Mode by clicking the toggle switch in the top right.
 3. Click `Load unpacked` and select the `chrome_extension` directory
 
+#### Firefox Extension
+1. Go to [`about:debugging#/runtime/this-firefox`](about:debugging#/runtime/this-firefox)
+2. Click "Load Temporary Add-on"
+3. Select the `manifest.json` file in the `firefox_extension` directory
+
 #### Desktop Mascot
 1. Install UV\
   https://docs.astral.sh/uv/#installation
