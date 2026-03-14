@@ -94,7 +94,7 @@ def getMessage(domain: str, event: Optional[str] = None) -> str:
         "instead of plain text. Ensure the 'response' argument contains the complete final answer. "
     )
 
-    if event is not None:
+    if event is None:
         user_prompt = f"Create an extremely passive aggressive message to encourage a user to stop browsing {domain}"
     else:
         user_prompt = f"Create an extremely passive aggressive message to encourage a user to stop browsing {domain}, at the same time remind them that their next task is {event}"

@@ -527,12 +527,8 @@ class FastAPIController:
                             message = getMessage(payload.domain)
                             self.mascot_app.get_angry()
                             self.mascot_app.request_show_message(message)
-                            sound_thread = threading.Thread(
-                                target=generateAndPlaySound,
-                                args=(message,),
-                                daemon=True,
-                            )
-                            sound_thread.start()
+                            if self.mascot_app.get_voice_enabled():
+                                generateAndPlaySound(message)
 
                     self.already_queued = False
 
@@ -575,9 +571,12 @@ class MascotApp(QObject):
         self.window.resize(200, 200)
         self._position_window()
 
-        self.tray = self._create_tray_icon()
+        self.voice_enabled = False
+        self._voice_lock = threading.Lock()
 
         self.message_popup = MessagePopup(self.window)
+
+        self.tray = self._create_tray_icon()
 
         self._pending_command: str | None = None
         self._command_lock = threading.Lock()
@@ -612,9 +611,11 @@ class MascotApp(QObject):
 
         menu = QMenu()
 
-        # self.swap_action = QAction("Swap mascot.png", menu)
-        # self.swap_action.triggered.connect(self.toggle_image)
-        # menu.addAction(self.swap_action)
+        toggle_voice_action = QAction("Enable Voice", menu)
+        toggle_voice_action.setCheckable(True)
+        toggle_voice_action.setChecked(self.voice_enabled)
+        toggle_voice_action.triggered.connect(self.toggle_voice)
+        menu.addAction(toggle_voice_action)
 
         menu.addSeparator()
 
@@ -657,6 +658,14 @@ class MascotApp(QObject):
     def request_show_message(self, message: str) -> None:
         with self._message_lock:
             self._pending_message = message
+
+    def toggle_voice(self) -> None:
+        with self._voice_lock:
+            self.voice_enabled = not self.voice_enabled
+
+    def get_voice_enabled(self) -> bool:
+        with self._voice_lock:
+            return self.voice_enabled
 
     def _process_pending_command(self) -> None:
         cmd = None
