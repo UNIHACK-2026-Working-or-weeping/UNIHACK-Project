@@ -14,15 +14,15 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderDomains(domains) {
     domainList.innerHTML = "";
     if (domains.length === 0) {
-      domainList.innerHTML = '<div class="empty-message">No custom domains added</div>';
+      domainList.innerHTML = '<div class="empty-domain-msg" id="emptyMsg">NO DOMAINS ADDED<br><span class="blink">_</span></div>';
       return;
     }
-
+  
     domains.forEach((domain) => {
       const item = document.createElement("div");
       item.className = "domain-item";
       item.innerHTML = `
-        <span>${domain}</span>
+        <span class="domain-name">${domain}</span>
         <button class="remove-btn" data-domain="${domain}">Remove</button>
       `;
       domainList.appendChild(item);
@@ -112,25 +112,26 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
 
-function spawnMascotOnSocialMedia() {
-  chrome.storage.local.get("defaultDomains", function (result) {
-    const defaultDomains = result.defaultDomains || [];
-    
-    chrome.tabs.query({}, function (tabs) {
-      chrome.storage.local.get("customDomains", function (result) {
-        const customDomains = result.customDomains || [];
-        const allDomains = [...defaultDomains, ...customDomains];
+  function spawnMascotOnSocialMedia() {
+    chrome.storage.local.get("defaultDomains", function (result) {
+      const defaultDomains = result.defaultDomains || [];
+      
+      chrome.tabs.query({}, function (tabs) {
+        chrome.storage.local.get("customDomains", function (result) {
+          const customDomains = result.customDomains || [];
+          const allDomains = [...defaultDomains, ...customDomains];
 
-        tabs.forEach((tab) => {
-          const url = new URL(tab.url);
-          const hostname = url.hostname.toLowerCase();
-          
-          if (allDomains.some(domain => hostname.endsWith(domain))) {
-            chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: changeMascotImage
-            });
-          }
+          tabs.forEach((tab) => {
+            const url = new URL(tab.url);
+            const hostname = url.hostname.toLowerCase();
+            
+            if (allDomains.some(domain => hostname.endsWith(domain))) {
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: changeMascotImage
+              });
+            }
+          });
         });
       });
     });
