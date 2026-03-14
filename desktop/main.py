@@ -408,6 +408,7 @@ class FastAPIController:
     def __init__(self, mascot_app: "MascotApp"):
         self.mascot_app = mascot_app
         self.app = FastAPI(title="Mascot Control API", version="1.0.0")
+        self.already_queued = False
 
         self.app.add_middleware(
             CORSMiddleware,  # ty: ignore[invalid-argument-type]
@@ -453,18 +454,22 @@ class FastAPIController:
 
         @self.app.post("/image/angry")
         def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
+            if not self.already_queued:
 
-            def process_teeth_async(domain: str | None):
-                if payload.domain:
-                    if not ai_features_enabled:
-                        print("Generic Passive Aggressive Quote goes herre")
-                        self.mascot_app.get_angry()
-                    else:
-                        message = getMessage(payload.domain)
-                        self.mascot_app.get_angry()
-                        generateAndPlaySound(message)
+                def process_teeth_async(domain: str | None):
+                    if payload.domain:
+                        if not ai_features_enabled:
+                            print("Generic Passive Aggressive Quote goes herre")
+                            self.mascot_app.get_angry()
+                        else:
+                            message = getMessage(payload.domain)
+                            self.mascot_app.get_angry()
+                            generateAndPlaySound(message)
+                    self.already_queued = False
 
-            background_tasks.add_task(process_teeth_async, payload.domain)
+                self.already_queued = True
+                background_tasks.add_task(process_teeth_async, payload.domain)
+
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
