@@ -14,7 +14,7 @@
   },
   "permissions": ["tabs", "storage", "contextMenus"],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "mascot_logo.png",
       "32": "mascot_logo.png",
