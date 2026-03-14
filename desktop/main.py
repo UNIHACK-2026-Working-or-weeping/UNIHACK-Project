@@ -1,8 +1,10 @@
 import queue
+import random
 import sys
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from enum import IntFlag, auto
 from pathlib import Path
 
@@ -536,6 +538,7 @@ class FastAPIController:
 
         class SetTeethRequest(BaseModel):
             domain: str | None = None
+            event: dict[str, str] | None = None
 
         @self.app.get("/health")
         def health():
@@ -565,7 +568,7 @@ class FastAPIController:
 
         @self.app.post("/image/angry")
         def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
-            print(self.already_queued)
+
             if not self.already_queued:
 
                 def process_teeth_async(domain: str | None):
@@ -574,16 +577,47 @@ class FastAPIController:
                             print("Generic Passive Aggressive Quote goes herre")
                             self.mascot_app.request_angry()
                         else:
-                            message = getMessage(payload.domain)
+                            parsed_event: str | None = None
+                            if payload.event:
+                                event_title = payload.event.get("title", "").strip()
+                                event_start_raw = payload.event.get("start", "").strip()
+                                if event_title and event_start_raw:
+                                    try:
+                                        event_start = datetime.fromisoformat(
+                                            event_start_raw.replace("Z", "+00:00")
+                                        )
+                                        now = datetime.now(event_start.tzinfo)
+                                        days_until_event = (
+                                            event_start.date() - now.date()
+                                        ).days
+                                        if days_until_event >= 0:
+                                            if days_until_event < 3:
+                                                parsed_event = f"{event_title} on {event_start.strftime('%A')}"
+                                            else:
+                                                parsed_event = f"{event_title} in {days_until_event} days"
+
+                                    except ValueError:
+                                        parsed_event = None
+
+                            ## 40% chance it will bring up a event, not 100% as otherwise the nagging gets a bit samey
+                            if random.random() < 0.4:
+                                message = getMessage(payload.domain, parsed_event)
+                            else:
+                                message = getMessage(payload.domain)
                             if message == "":
                                 # Mostly on first requests, tool calls don't work, running a second time normally fixes things
-                                message = getMessage(payload.domain)
+                                if random.random() < 0.4:
+                                    message = getMessage(payload.domain, parsed_event)
+                                else:
+                                    message = getMessage(payload.domain)
 
+                            print(f"[/image/angry] Generated message: {message}")
                             self.mascot_app.request_angry()
                             self.mascot_app.request_show_message(message)
                             if self.mascot_app.get_voice_enabled():
                                 generateAndPlaySound(message)
                     self.already_queued = False
+                    print("[/image/angry] Processing completed")
 
                 self.already_queued = True
                 background_tasks.add_task(process_teeth_async, payload.domain)
