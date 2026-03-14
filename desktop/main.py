@@ -742,7 +742,8 @@ class MascotApp(QObject):
                 self._pending_command = None
 
         if cmd == "default":
-            self.get_calm()
+            if self.is_angry:
+                self.get_calm()
         elif cmd == "teeth":
             self.get_angry()
         elif cmd == "make_angry":
@@ -771,6 +772,9 @@ class MascotApp(QObject):
         self.animation.go_mad()
 
     def get_calm(self) -> None:
+        # Added to prevent thread errors
+        if not self.is_angry:
+            return
         self.is_angry = False
         self.animation.go_calm()
 
