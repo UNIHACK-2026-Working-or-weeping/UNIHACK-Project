@@ -1,5 +1,7 @@
 from pathlib import Path
+
 from PySide6.QtCore import QTimer
+
 
 class IdleAnimation:
     """
@@ -7,6 +9,7 @@ class IdleAnimation:
     sprite sequence (0.5s each), then waits another 5 seconds before repeating.
     Resets if the user interacts with the mascot.
     """
+
     INACTIVITY_TIMEOUT_MS = 5000
     FRAME_DURATION_MS = 500
 
@@ -15,11 +18,23 @@ class IdleAnimation:
 
     def __init__(self, window, base_dir: Path):
         self.window = window
+        self.is_angry = False
+        self.anger_level = 0
 
         self.sprites = {
             "default": base_dir / "mascot/mascot_centre.png",
             "left": base_dir / "mascot/mascot_left.png",
             "right": base_dir / "mascot/mascot_right.png",
+        }
+        self.angry_1_sprites = {
+            "default": base_dir / "mascot/mascot_frown.png",
+            "left": base_dir / "mascot/neckbreak_1.png",
+            "right": base_dir / "mascot/neckbreak_2.png",
+        }
+        self.angry_2_sprites = {
+            "default": base_dir / "mascot/mascot_smile.png",
+            "left": base_dir / "mascot/neckbreak_1.png",
+            "right": base_dir / "mascot/neckbreak_2.png",
         }
 
         self._playing = False
@@ -53,11 +68,26 @@ class IdleAnimation:
         sequence = self.SEQUENCE  # ["left", "right"]
         if self._frame_index < len(sequence):
             sprite_key = sequence[self._frame_index]
-            self.window.set_image(self.sprites[sprite_key])
+            if self.is_angry:
+                match self.anger_level:
+                    case 1 | 2 | 3:
+                        self.window.set_image(self.angry_1_sprites[sprite_key])
+                    case _:
+                        self.window.set_image(self.angry_2_sprites[sprite_key])
+            else:
+                self.window.set_image(self.sprites[sprite_key])
+
             self._frame_timer.start(self.FRAME_DURATION_MS)
         else:
             # Sequence done, restore default
-            self.window.set_image(self.sprites["default"])
+            if self.is_angry:
+                match self.anger_level:
+                    case 1 | 2 | 3:
+                        self.window.set_image(self.angry_1_sprites["default"])
+                    case _:
+                        self.window.set_image(self.angry_2_sprites["default"])
+            else:
+                self.window.set_image(self.sprites["default"])
             self._playing = False
             self._start_inactivity_timer()  # wait and potentially repeat
 

@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 try:
-    from ai_inference import ensure_model_exists, getMessage
+    from ai_inference import ensure_model_exists, generateAndPlaySound, getMessage
 
     ensure_model_exists()
     ai_features_enabled = True
@@ -30,6 +30,7 @@ except ImportError:
     ai_features_enabled = False
 
 from idle import IdleAnimation
+
 
 class ResizeRegion(IntFlag):
     NONE = 0
@@ -244,7 +245,7 @@ class MascotWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.on_activity_callback:
                 self.on_activity_callback()
-            
+
             local_pos = event.position().toPoint()
 
             if (
@@ -295,7 +296,7 @@ class MascotWindow(QWidget):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self.on_activity_callback:
             self.on_activity_callback()
-        
+
         local_pos = event.position().toPoint()
 
         if self._is_scaling and (event.buttons() & Qt.MouseButton.LeftButton):
@@ -407,6 +408,7 @@ class FastAPIController:
     def __init__(self, mascot_app: "MascotApp"):
         self.mascot_app = mascot_app
         self.app = FastAPI(title="Mascot Control API", version="1.0.0")
+        self.already_queued = False
 
         self.app.add_middleware(
             CORSMiddleware,  # ty: ignore[invalid-argument-type]
@@ -437,12 +439,12 @@ class FastAPIController:
             )
             return {
                 "current_image": current,
-                "using_teeth": self.mascot_app.using_teeth,
+                "is_angry": self.mascot_app.is_angry,
             }
 
-        @self.app.post("/image/toggle")
+        @self.app.post("/image/calm")
         def toggle_image():
-            self.mascot_app.request_toggle()
+            self.mascot_app.get_calm()
             return {"ok": True, "action": "toggle"}
 
         @self.app.post("/image/default")
@@ -450,19 +452,24 @@ class FastAPIController:
             self.mascot_app.request_set_named_image("default")
             return {"ok": True, "action": "set_default"}
 
-        @self.app.post("/image/teeth")
+        @self.app.post("/image/angry")
         def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
+            if not self.already_queued:
 
-            def process_teeth_async(domain: str | None):
-                if payload.domain:
-                    if not ai_features_enabled:
-                        print("Generic Passive Aggressive Quote goes herre")
-                        self.mascot_app.request_set_named_image("teeth")
-                    else:
-                        print(getMessage(payload.domain))
-                self.mascot_app.request_set_named_image("teeth")
+                def process_teeth_async(domain: str | None):
+                    if payload.domain:
+                        if not ai_features_enabled:
+                            print("Generic Passive Aggressive Quote goes herre")
+                            self.mascot_app.get_angry()
+                        else:
+                            message = getMessage(payload.domain)
+                            self.mascot_app.get_angry()
+                            generateAndPlaySound(message)
+                    self.already_queued = False
 
-            background_tasks.add_task(process_teeth_async, payload.domain)
+                self.already_queued = True
+                background_tasks.add_task(process_teeth_async, payload.domain)
+
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
@@ -480,10 +487,12 @@ class FastAPIController:
 class MascotApp:
     def __init__(self, app: QApplication):
         self.app = app
+        self.anger_count = 0
         self.base_dir = Path(__file__).parent
-        self.default_image = self.base_dir / "mascot.png"
-        self.teeth_image = self.base_dir / "mascot_1.png"
-        self.using_teeth = False
+        self.default_image = self.base_dir / "mascot/mascot_centre.png"
+        self.angry_1_image = self.base_dir / "mascot/mascot_frown.png"
+        self.angry_2_image = self.base_dir / "mascot/mascot_smile.png"
+        self.is_angry = False
 
         self.window = MascotWindow(str(self.default_image))
         self.window.resize(200, 200)
@@ -521,9 +530,9 @@ class MascotApp:
 
         menu = QMenu()
 
-        self.swap_action = QAction("Swap to mascot_1.png", menu)
-        self.swap_action.triggered.connect(self.toggle_image)
-        menu.addAction(self.swap_action)
+        # self.swap_action = QAction("Swap mascot.png", menu)
+        # self.swap_action.triggered.connect(self.toggle_image)
+        # menu.addAction(self.swap_action)
 
         menu.addSeparator()
 
@@ -555,6 +564,10 @@ class MascotApp:
         with self._command_lock:
             self._pending_command = "toggle"
 
+    def request_angry(self) -> None:
+        with self._command_lock:
+            self._pending_command = "make_angry"
+
     def request_set_named_image(self, image_name: str) -> None:
         with self._command_lock:
             self._pending_command = image_name
@@ -569,24 +582,27 @@ class MascotApp:
         if cmd is None:
             return
 
-        if cmd == "toggle":
-            self.toggle_image()
-        elif cmd == "default":
-            if self.using_teeth:
-                self.toggle_image()
+        if cmd == "default":
+            self.get_calm()
         elif cmd == "teeth":
-            if not self.using_teeth:
-                self.toggle_image()
+            self.get_angry()
 
-    def toggle_image(self) -> None:
-        target = self.teeth_image if not self.using_teeth else self.default_image
+    def get_angry(self) -> None:
+        self.anger_count += 1
+        self.idle_anim.is_angry = True
+        self.idle_anim.anger_level = self.anger_count
+        # self.swap_action.setText("Swap to mascot default.png")
+        match self.anger_count:
+            case 1 | 2 | 3:
+                target = self.angry_1_image
+            case _:
+                target = self.angry_2_image
         self.window.set_image(target)
-        self.using_teeth = not self.using_teeth
 
-        if self.using_teeth:
-            self.swap_action.setText("Swap to mascot.png")
-        else:
-            self.swap_action.setText("Swap to mascot_1.png")
+    def get_calm(self) -> None:
+        self.idle_anim.is_angry = False
+        target = self.default_image
+        self.window.set_image(target)
 
     def run(self) -> int:
         self.window.show()

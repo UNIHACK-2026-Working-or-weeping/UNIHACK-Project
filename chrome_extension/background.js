@@ -1,4 +1,4 @@
-const DISABLE_TIMER = false;
+const DISABLE_TIMER = true;
 
 const defaultDomains = [
   "facebook.com",
@@ -66,7 +66,7 @@ async function sendTeethRequest(domain, tabId) {
 
 async function executeTeethRequest(domain) {
   try {
-    await fetch("http://localhost:8000/image/teeth", {
+    await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -81,7 +81,7 @@ async function executeTeethRequest(domain) {
 
 async function sendDefaultRequest() {
   try {
-    await fetch("http://localhost:8000/image/default", {
+    await fetch("http://localhost:8000/image/calm", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -153,6 +153,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (isSocialMediaUrl(tab.url)) {
       const hostname = new URL(tab.url).hostname.toLowerCase();
       sendTeethRequest(hostname, tabId);
+    } else {
+      sendDefaultRequest();
     }
   }
 });
@@ -175,9 +177,13 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       tabUrlCache.set(activeInfo.tabId, currentTab.url);
     }
 
-    if (currentTab.url && isSocialMediaUrl(currentTab.url)) {
-      const hostname = new URL(currentTab.url).hostname.toLowerCase();
-      sendTeethRequest(hostname, activeInfo.tabId);
+    if (currentTab.url) {
+      if (isSocialMediaUrl(currentTab.url)) {
+        const hostname = new URL(currentTab.url).hostname.toLowerCase();
+        sendTeethRequest(hostname, activeInfo.tabId);
+      } else {
+        sendDefaultRequest();
+      }
     }
 
     previousTabId = activeInfo.tabId;
