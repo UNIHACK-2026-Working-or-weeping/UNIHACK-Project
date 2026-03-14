@@ -1,5 +1,7 @@
+import queue
 import sys
 import threading
+from dataclasses import dataclass
 from enum import IntFlag, auto
 from pathlib import Path
 
@@ -17,6 +19,14 @@ from PySide6.QtWidgets import (
     QSystemTrayIcon,
     QWidget,
 )
+
+try:
+    from ai_inference import ensure_model_exists, getMessage
+
+    ai_features_enabled = True
+except ImportError:
+    print("Llama.cpp not installed, disabled AI features")
+    ai_features_enabled = False
 
 
 class ResizeRegion(IntFlag):
@@ -431,7 +441,10 @@ class FastAPIController:
         @self.app.post("/image/teeth")
         def set_teeth(payload: SetTeethRequest):
             if payload.domain:
-                print(f"Domain: {payload.domain}")
+                if ai_features_enabled:
+                    print("Generic Passive Aggressive Quote goes herre")
+                else:
+                    print(getMessage(payload.domain))
             self.mascot_app.request_set_named_image("teeth")
             return {"ok": True, "action": "set_teeth"}
 
