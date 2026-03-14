@@ -18,7 +18,9 @@ TODO: FILL OUT THIS PART OF README
   https://docs.astral.sh/uv/#installation
 2. Navigate to desktop folder\
   `cd desktop`
-3. Run the program\
+3. Download tts model
+  `uv run huggingface-cli download Qwen/Qwen3-TTS-12Hz-0.6B-Base --local-dir ./models/Qwen3-TTS-12Hz-0.6B-Base`
+4. Run the program\
     `uv run main.py`
 
 #### Disabling AI Features for local dev
