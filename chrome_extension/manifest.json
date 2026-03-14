@@ -12,7 +12,8 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["tabs", "storage", "contextMenus"],
+  "permissions": ["tabs", "storage", "contextMenus", "scripting"],
+  "host_permissions": ["http://127.0.0.1:8000/*", "<all_urls>"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

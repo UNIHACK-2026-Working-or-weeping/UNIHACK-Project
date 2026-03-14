@@ -166,7 +166,22 @@ if (chrome.contextMenus) {
   console.error("contextMenus API is unavailable");
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+loadCustomDomains();
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.customDomains) {
+    customDomains = changes.customDomains.newValue || [];
+    console.log("Updated custom domains from storage:", customDomains);
+  }
+  if (area === "local" && changes.nextCalendarEventText) {
+    console.log(
+      "Next calendar event text updated:",
+      changes.nextCalendarEventText.newValue,
+    );
+  }
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (tab.url) {
     tabUrlCache.set(tabId, tab.url);
   }

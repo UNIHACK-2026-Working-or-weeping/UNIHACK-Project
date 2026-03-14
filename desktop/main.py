@@ -71,6 +71,7 @@ class MascotWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setStyleSheet("background: transparent;")
 
         self.label = QLabel(self)
         self.label.setStyleSheet("background: transparent;")
@@ -486,7 +487,7 @@ class MessagePopup(QWidget):
 
         self.hide()
 
-    def show_message(self, message: str) -> None:
+    def show_message(self, message: str, duration_ms: int = 4000) -> None:
         self.label.setText(message)
         self.label.adjustSize()
         self.resize(self.label.size())
@@ -514,7 +515,7 @@ class MessagePopup(QWidget):
 
         self.move(x, y)
         self.show()
-        self.timer.start(10000)
+        self.timer.start(duration_ms)
 
 
 class FastAPIController:
@@ -635,6 +636,19 @@ class FastAPIController:
             self.mascot_app.request_set_named_image(image_name)
             return {"ok": True, "action": "set_image", "image": image_name}
 
+        @self.app.post("/image/hide")
+        def hide_mascot():
+            self.mascot_app.window.hide()
+            self.mascot_app.message_popup.show_message("Mascot turned off", duration_ms=1800)
+            return {"ok": True, "action": "hide", "message": "Mascot turned off"}
+
+        @self.app.post("/image/show")
+        def show_mascot():
+            self.mascot_app.window.show()
+            self.mascot_app.request_set_named_image("default")
+            self.mascot_app.message_popup.show_message("Mascot turned on", duration_ms=1800)
+            return {"ok": True, "action": "show", "message": "Mascot turned on"}
+
         @self.app.get("/test/popup")
         def test_popup():
             self.mascot_app.request_show_message(
@@ -717,21 +731,44 @@ class MascotApp(QObject):
         tray_icon.show()
         return tray_icon
 
+    def _is_port_in_use(self, port: int) -> bool:
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            result = sock.connect_ex(("127.0.0.1", port))
+            return result == 0
+
     def _start_api_server(self) -> None:
+        preferred_port = 8000
+        if self._is_port_in_use(preferred_port):
+            print(
+                f"[WARNING] Port {preferred_port} is already in use. API server will not start."
+            )
+            print(
+                "Please close the other service or restart this app. The mascot UI will still run, but extension API calls will fail until port 8000 is free."
+            )
+            self.api_thread = None
+            return
+
         config = uvicorn.Config(
             self.api.app,
             host="127.0.0.1",
-            port=8000,
+            port=preferred_port,
             log_level="info",
         )
         server = uvicorn.Server(config)
 
         def run_server():
-            server.run()
-            # Only post if animation has been initialised
-            if hasattr(self, "animation"):
-                with self._command_lock:
-                    self._pending_command = "server_down"
+            try:
+                server.run()
+            except Exception as e:
+                print(f"[ERROR] FastAPI server thread failed: {e}")
+            finally:
+                # Only post if animation has been initialised
+                if hasattr(self, "animation"):
+                    with self._command_lock:
+                        self._pending_command = "server_down"
 
         self.api_thread = threading.Thread(
             target=run_server,
