@@ -15,5 +15,11 @@
   "permissions": ["tabs", "storage", "contextMenus", "webNavigation"],
   "browser_action": {
     "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "mascot_logo.png",
+    "32": "mascot_logo.png",
+    "48": "mascot_logo.png",
+    "128": "mascot_logo.png"
   }
 }
