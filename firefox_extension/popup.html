@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+    body {
+      width: 300px;
+      font-family: "Press Start 2P", monospace;
+      padding: 0 4px 4px 0;
+      margin: 0;
+    }
+
+    .root {
+      background: #0a1a0a;
+      border: 2px solid #6fe41050;
+      image-rendering: pixelated;
+      box-shadow: 4px 4px 0 #173404;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #6fe41050;
+      border-bottom: 2px solid #6fe41050;
+      padding: 16px;
+    }
+
+    .header-icon {
+      width: 16px; height: 16px;
+      background: #6fe410;
+      box-shadow: 2px 0 0 #6fe410, 0 2px 0 #6fe410, -2px 0 0 #0a1a0a, 0 -2px 0 #0a1a0a;
+      flex-shrink: 0;
+    }
+
+    .header-title {
+      font-size: 8px;
+      color: #6fe410;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    main {
+      padding: 16px;
+    }
+
+    .input-label {
+      font-size: 8px;
+      color: #6fe410;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    #domainInput {
+      flex: 1;
+      background: #0f2a0f;
+      border: 2px solid #6fe41050;
+      color: #6fe410;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      padding: 7px 8px;
+      outline: none;
+      box-shadow: inset 2px 2px 0 #04100a;
+    }
+
+    #domainInput::placeholder { color: #6fe41050; }
+
+    #addBtn {
+      background: #6fe41069;
+      border: 2px solid #6fe41050;
+      color: #C0DD97;
+      font-family: "Press Start 2P", monospace;
+      font-size: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 #0a1a0a;
+      white-space: nowrap;
+      transition: none;
+    }
+
+    #addBtn:hover { background: #6fe41050; color: #eaf3de; }
+    #addBtn:active { box-shadow: none; transform: translate(2px,2px); }
+
+    .divider {
+      border: none;
+      border-top: 2px solid #6fe41050;
+      margin: 10px 0;
+    }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .file-input-label {
+      background: #0f2a0f;
+      border: 2px solid #6fe41050;
+      color: #6fe410;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 6px;
+      padding: 7px 8px;
+      cursor: pointer;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .file-input-label input { display: none; }
+    
+    .file-icon {
+      width: 10px; height: 12px;
+      background: #27500a;
+      border: 1px solid #6fe410;
+      position: relative;
+      flex-shrink: 0;
+    }
+    
+    .file-icon::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 4px; height: 4px;
+      background: #0a1a0a;
+      border-bottom: 1px solid #6fe410;
+      border-left: 1px solid #6fe410;
+    }
+    
+    .domain-list {
+      border: 2px solid #173404;
+      background: #06120a;
+      min-height: 60px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    
+    .domain-list::-webkit-scrollbar { width: 6px; }
+    .domain-list::-webkit-scrollbar-track { background: #0a1a0a; }
+    .domain-list::-webkit-scrollbar-thumb { background: #6fe410; }
+    
+    .domain-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 8px;
+      border-bottom: 1px solid #6fe410;
+      font-size: 6px;
+    }
+    
+    .domain-item:last-child { border-bottom: none; }
+    
+    .domain-name { color: #6fe410; }
+    
+    .remove-btn {
+      background: #27100a;
+      border: 1px solid #633806;
+      color: #EF9F27;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 6px;
+      padding: 4px;
+      cursor: pointer;
+      box-shadow: 1px 1px 0 #412402;
+    }
+    
+    .remove-btn:hover { background: #633806; }
+    
+    .remove-btn:active { box-shadow: none; transform: translate(1px,1px); }
+    
+    .empty-domain-msg {
+      color: #27500a;
+      font-size: 6px;
+      text-align: center;
+      padding: 16px 8px;
+      line-height: 2;
+    }
+
+    .blink { animation: blink 1s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+
+<body>
+  <div class="root">
+    <header>
+      <div class="header-icon"></div>
+      <span class="header-title">Social Media Tracker</span>
+    </header>
+    
+    <main>
+      <span class="input-label">Add Domain</span>
+      <div class="input-group">
+        <input type="text" id="domainInput" placeholder="http://example.com/">
+        <button id="addBtn">+ ADD</button>
+      </div>
+    
+      <hr class="divider">
+        
+      <span class="input-label">Import Calendar (.ics)</span>
+      <div class="file-group">
+        <label class="file-input-label">
+          <div class="file-icon"></div>
+          <span id="fileLabel">Choose .ics file</span>
+          <input type="file" id="icsFileInput" accept=".ics">
+       </label>
+      </div>
+    
+      <hr class="divider">
+    
+      <span class="input-label">Added Domains</span>
+      <div class="domain-list" id="domainList"></div>
+    </main>
+  </div>
+  <script src="browser-api.js"></script>
+  <script src="popup.js"></script>
+</body>
+
+</html>
