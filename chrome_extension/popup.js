@@ -120,10 +120,15 @@ document.addEventListener("DOMContentLoaded", function () {
   let nextCalendarEventText = null;
 
   function updateNextEventLabel() {
+    const titleEl = document.getElementById("nextEventTitle");
+    const timeEl = document.getElementById("nextEventTime");
     if (nextCalendarEventText) {
-      nextEventLabel.textContent = `Next: ${nextCalendarEventText}`;
+      const [title, ...rest] = nextCalendarEventText.split(" at ");
+      titleEl.textContent = title || "—";
+      timeEl.textContent = rest.length ? "@ " + rest.join(" at ") : "";
     } else {
-      nextEventLabel.textContent = "No upcoming event in the next 7 days.";
+      titleEl.textContent = "—";
+      timeEl.textContent = "No upcoming event in the next 7 days.";
     }
   }
 
@@ -202,9 +207,12 @@ document.addEventListener("DOMContentLoaded", function () {
       )
       .sort((a, b) => a.start - b.start);
 
+    let nearestEvent = null;
     if (upcomingEvents.length > 0) {
       const nextEvent = upcomingEvents[0];
-      nextCalendarEventText = `${nextEvent.summary || "Next activity"} at ${nextEvent.start.toLocaleString()}`;
+      const title = (nextEvent.summary || "Next activity").trim();
+      nextCalendarEventText = `${title} at ${nextEvent.start.toLocaleString()}`;
+      nearestEvent = { title, start: nextEvent.start.toISOString() };
       console.log("Parsed next calendar event:", nextCalendarEventText);
     } else {
       nextCalendarEventText = null;
@@ -212,14 +220,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     chrome.storage.local.set({
       nextCalendarEventText,
+      nearestEvent,
       calendarIcs: icsData,
     });
     updateNextEventLabel();
   }
 
   function parseIcsDate(value) {
-    // Supports YYYYMMDDTHHMMSSZ and YYYYMMDD
-    const trimmed = value.trim();
+    let trimmed = String(value || "").trim();
+    const valuePrefix = "VALUE=DATE:";
+    if (trimmed.toUpperCase().startsWith(valuePrefix)) {
+      trimmed = trimmed.slice(valuePrefix.length).trim();
+    }
     const dateOnly = /^\d{8}$/.test(trimmed);
     if (dateOnly) {
       const y = +trimmed.slice(0, 4);
@@ -242,7 +254,6 @@ document.addEventListener("DOMContentLoaded", function () {
       return new Date(y, mo, d, hh, mm, ss);
     }
 
-    // fallback
     const parsed = Date.parse(trimmed);
     return isNaN(parsed) ? null : new Date(parsed);
   }
@@ -268,47 +279,15 @@ document.addEventListener("DOMContentLoaded", function () {
     reader.readAsText(file);
   });
 
-  function spawnMascotOnSocialMedia() {
-    chrome.storage.local.get("defaultDomains", function (result) {
-      const defaultDomains = result.defaultDomains || [];
-
-      chrome.tabs.query({}, function (tabs) {
-        chrome.storage.local.get("customDomains", function (result) {
-          const customDomains = result.customDomains || [];
-          const allDomains = [...defaultDomains, ...customDomains];
-
-          let anyMatch = false;
-          tabs.forEach((tab) => {
-            const url = new URL(tab.url);
-            const hostname = url.hostname.toLowerCase();
-
-            if (allDomains.some((domain) => hostname.endsWith(domain))) {
-              anyMatch = true;
-              chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: changeMascotImage,
-              });
-            }
-          });
-
-          if (anyMatch && nextCalendarEventText) {
-            sendDesktopReminder(nextCalendarEventText);
-          }
-        });
-      });
-    });
-  }
-
   async function setMascotPower(on) {
     const endpoint = on ? "/image/show" : "/image/hide";
     try {
       const res = await fetch("http://127.0.0.1:8000" + endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
-      if (!res.ok) {
-        throw new Error(`Status ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Status ${res.status}`);
       const data = await res.json();
       console.log("Mascot power response", data);
       setMascotState(on);

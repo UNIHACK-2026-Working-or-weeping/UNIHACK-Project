@@ -13,11 +13,17 @@ const defaultDomains = [
   "youtube.com",
   "twitch.tv",
 ];
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get("defaultDomains", function (result) {
     if (!result.defaultDomains) {
       chrome.storage.local.set({ defaultDomains });
     }
+  });
+  chrome.contextMenus.create({
+    id: "addDomain",
+    title: "Add current domain to tracker",
+    contexts: ["page"],
   });
 });
 
@@ -73,7 +79,7 @@ async function sendTeethRequest(domain, tabId) {
     const timerId = setTimeout(() => {
       executeTeethRequest(domain);
       pendingTimers.delete(tabId);
-    }, 10000);
+    }, 3000);
     pendingTimers.set(tabId, timerId);
   }
 }
@@ -83,12 +89,9 @@ async function executeTeethRequest(domain) {
     const { nearestEvent } = await chrome.storage.local.get("nearestEvent");
     const payload = { domain: domain, event: nearestEvent || null };
     console.log("[Calendar][Chrome] Sending /image/angry payload", payload);
-    console.log("executeTeethRequest: Sending request to /image/angry");
     await fetch("http://localhost:8000/image/angry", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     console.log("TEETH", domain);
@@ -99,18 +102,16 @@ async function executeTeethRequest(domain) {
 
 async function sendDefaultRequest() {
   try {
-    console.log("sendDefaultRequest: Sending request to /image/calm");
-    const response = await fetch("http://localhost:8000/image/calm", {
+    await fetch("http://localhost:8000/image/calm", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
-    console.log(
-      "sendDefaultRequest: Response received",
-      response.status,
-      response.statusText,
-    );
+    setTimeout(async () => {
+      await fetch("http://localhost:8000/message/hide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+    }, 3000); // hides 3 seconds after leaving the domain
   } catch (error) {
     console.error("Failed to send POST request:", error);
   }
@@ -118,7 +119,6 @@ async function sendDefaultRequest() {
 
 async function isSocialMediaUrl(url) {
   if (!url) return false;
-
   try {
     const hostname = normalizeDomain(new URL(url).hostname);
     const allDomains = await getAllDomains();
@@ -130,31 +130,9 @@ async function isSocialMediaUrl(url) {
   }
 }
 
-function changeMascotImage() {
-  const mascotImage = document.querySelector('img[src*="mascot.png"]');
-
-  if (mascotImage) {
-    mascotImage.src = mascotImage.src.replace("mascot.png", "mascot_smile.png");
-  } else {
-    console.log("Mascot image not found.");
-  }
-}
-
-console.log("background loaded");
-console.log("chrome.contextMenus =", chrome.contextMenus);
-
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "addDomain",
-    title: "Add current domain to tracker",
-    contexts: ["page"],
-  });
-});
-
 if (chrome.contextMenus) {
   chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId !== "addDomain" || !tab?.url) return;
-
     try {
       const hostname = new URL(tab.url).hostname.toLowerCase();
       await addDomain(hostname);
@@ -166,30 +144,13 @@ if (chrome.contextMenus) {
   console.error("contextMenus API is unavailable");
 }
 
-loadCustomDomains();
-
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.customDomains) {
-    customDomains = changes.customDomains.newValue || [];
-    console.log("Updated custom domains from storage:", customDomains);
-  }
-  if (area === "local" && changes.nextCalendarEventText) {
-    console.log(
-      "Next calendar event text updated:",
-      changes.nextCalendarEventText.newValue,
-    );
-  }
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (tab.url) {
     tabUrlCache.set(tabId, tab.url);
   }
-
   if (changeInfo.status === "complete" && tab.url) {
     if (await isSocialMediaUrl(tab.url)) {
-      const hostname = new URL(tab.url).hostname.toLowerCase();
-      console.log("THIS RAN");
+      const hostname = normalizeDomain(new URL(tab.url).hostname);
       sendTeethRequest(hostname, tabId);
     } else {
       sendDefaultRequest();
@@ -217,7 +178,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
     if (currentTab.url) {
       if (await isSocialMediaUrl(currentTab.url)) {
-        const hostname = new URL(currentTab.url).hostname.toLowerCase();
+        const hostname = normalizeDomain(new URL(currentTab.url).hostname);
         sendTeethRequest(hostname, activeInfo.tabId);
       } else {
         sendDefaultRequest();
@@ -245,3 +206,5 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     console.error("Failed to handle tab close:", error);
   }
 });
+
+console.log("background loaded");
