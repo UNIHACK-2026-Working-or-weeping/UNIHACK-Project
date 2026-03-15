@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Guilt Mascot",
+  "version": "1.0",
+  "description": "A mascot that guilt-trips you when you visit distracting sites",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["mascot.css"]
+    }
+  ]
+}

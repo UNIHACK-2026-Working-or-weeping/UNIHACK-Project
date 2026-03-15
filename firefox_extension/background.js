@@ -77,12 +77,15 @@ async function sendTeethRequest(domain, tabId) {
 
 async function executeTeethRequest(domain) {
   try {
+    const { nearestEvent } = await api.storage.local.get("nearestEvent");
+    const payload = { domain: domain, event: nearestEvent || null };
+    console.log("[Calendar][Firefox] Sending /image/angry payload", payload);
     await fetch("http://localhost:8000/image/angry", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ domain: domain }),
+      body: JSON.stringify(payload),
     });
     console.log("TEETH", domain);
   } catch (error) {

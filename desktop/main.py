@@ -1,14 +1,17 @@
+import json
 import queue
+import random
 import sys
 import threading
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from enum import IntFlag, auto
 from pathlib import Path
 
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
@@ -72,6 +75,7 @@ class MascotWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setStyleSheet("background: transparent;")
 
         self.label = QLabel(self)
         self.label.setStyleSheet("background: transparent;")
@@ -103,7 +107,7 @@ class MascotWindow(QWidget):
         self.label.setMouseTracking(True)
 
         self._last_pixmap_size = QSize(0, 0)
-        self.flipped = False  # Avatar faces left
+        self.flipped = False
 
         self.interrupt_on_user_activity: Callable[[], None] | None = None
         self.resume_after_user_activity: Callable[[], None] | None = None
@@ -126,7 +130,7 @@ class MascotWindow(QWidget):
 
         if self.size().width() <= 1 or self.size().height() <= 1:
             self.resize(self.pixmap.size())
-        elif (  # <-- guard restored
+        elif (
             self.pixmap.width() != self._last_pixmap_size.width()
             or self.pixmap.height() != self._last_pixmap_size.height()
         ):
@@ -349,9 +353,7 @@ class MascotWindow(QWidget):
             event.accept()
             return
 
-        if self._is_dragging and (
-            event.buttons() & Qt.MouseButton.LeftButton
-        ):  # <-- was is_opaque_at check
+        if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):
             self.move(event.globalPosition().toPoint() - self.drag_offset)
             event.accept()
             return
@@ -487,7 +489,7 @@ class MessagePopup(QWidget):
 
         self.hide()
 
-    def show_message(self, message: str) -> None:
+    def show_message(self, message: str, duration_ms: int = 4000) -> None:
         self.label.setText(message)
         self.label.adjustSize()
         self.resize(self.label.size())
@@ -515,7 +517,7 @@ class MessagePopup(QWidget):
 
         self.move(x, y)
         self.show()
-        self.timer.start(10000)
+        self.timer.start(duration_ms)
 
 
 class FastAPIController:
@@ -523,6 +525,7 @@ class FastAPIController:
         self.mascot_app = mascot_app
         self.app = FastAPI(title="Mascot Control API", version="1.0.0")
         self.already_queued = False
+        self._queue_lock = threading.Lock()
 
         self.app.add_middleware(
             CORSMiddleware,  # ty: ignore[invalid-argument-type]
@@ -539,6 +542,10 @@ class FastAPIController:
 
         class SetTeethRequest(BaseModel):
             domain: str | None = None
+            event: dict[str, str] | None = None
+
+        class ShowMascotRequest(BaseModel):
+            message: str | None = None
 
         class SetAvatarRequest(BaseModel):
             version: str
@@ -571,29 +578,63 @@ class FastAPIController:
 
         @self.app.post("/image/angry")
         def set_teeth(payload: SetTeethRequest, background_tasks: BackgroundTasks):
-            print(self.already_queued)
-            if not self.already_queued:
+            with self._queue_lock:
+                if self.already_queued:
+                    return {"ok": True, "action": "set_teeth"}
+                self.already_queued = True
 
-                def process_teeth_async(domain: str | None):
-                    if payload.domain:
-                        if not ai_features_enabled:
-                            print("Generic Passive Aggressive Quote goes herre")
-                            self.mascot_app.request_angry()
+            def process_teeth_async(domain: str | None):
+                if payload.domain:
+                    # Parse event first regardless of AI
+                    parsed_event: str | None = None
+                    if payload.event:
+                        event_title = payload.event.get("title", "").strip()
+                        event_start_raw = payload.event.get("start", "").strip()
+                        if event_title and event_start_raw:
+                            try:
+                                event_start = datetime.fromisoformat(
+                                    event_start_raw.replace("Z", "+00:00")
+                                )
+                                now = datetime.now(event_start.tzinfo)
+                                days_until_event = (
+                                    event_start.date() - now.date()
+                                ).days
+                                if days_until_event >= 0:
+                                    if days_until_event < 3:
+                                        parsed_event = f"{event_title} on {event_start.strftime('%A')}"
+                                    else:
+                                        parsed_event = f"{event_title} in {days_until_event} days"
+                            except ValueError:
+                                parsed_event = None
+
+                    self.mascot_app.request_angry()
+
+                    if not ai_features_enabled:
+                        if parsed_event:
+                            message = f"Get off {payload.domain}! You have {parsed_event}"
+                        else:
+                            message = f"Stop scrolling on {payload.domain}!"
+                    else:
+                        if parsed_event:
+                            message = getMessage(payload.domain, parsed_event)
                         else:
                             message = getMessage(payload.domain)
-                            if message == "":
-                                # Mostly on first requests, tool calls don't work, running a second time normally fixes things
+
+                        if message == "":
+                            if parsed_event:
+                                message = getMessage(payload.domain, parsed_event)
+                            else:
                                 message = getMessage(payload.domain)
 
-                            self.mascot_app.request_angry()
-                            self.mascot_app.request_show_message(message)
-                            if self.mascot_app.get_voice_enabled():
-                                generateAndPlaySound(message)
-                    self.already_queued = False
+                    print(f"[/image/angry] Generated message: {message}")
+                    self.mascot_app.request_show_message(message, permanent=True)
+                    if self.mascot_app.get_voice_enabled():
+                        generateAndPlaySound(message)
 
-                self.already_queued = True
-                background_tasks.add_task(process_teeth_async, payload.domain)
+                self.already_queued = False
+                print("[/image/angry] Processing completed")
 
+            background_tasks.add_task(process_teeth_async, payload.domain)
             return {"ok": True, "action": "set_teeth"}
 
         @self.app.post("/image/set")
@@ -607,10 +648,52 @@ class FastAPIController:
             self.mascot_app.request_set_named_image(image_name)
             return {"ok": True, "action": "set_image", "image": image_name}
 
+        @self.app.post("/image/hide")
+        def hide_mascot():
+            try:
+                self.mascot_app.request_set_named_image("default")
+                self.mascot_app.request_show_message("Mascot turned off", permanent=False)
+                self.mascot_app._command_queue.put("hide")
+                return {"ok": True, "action": "hide", "message": "Mascot turned off"}
+            except Exception as e:
+                print("[ERROR] hide_mascot:", e)
+                return {"ok": False, "action": "hide", "error": str(e)}
+
+        @self.app.post("/image/show")
+        async def show_mascot(request: Request):
+            payload = None
+            try:
+                body = await request.body()
+                if body:
+                    payload = ShowMascotRequest(**json.loads(body))
+            except Exception:
+                pass
+            try:
+                self.mascot_app._command_queue.put("show")
+                self.mascot_app.request_set_named_image("default")
+                msg = (
+                    (payload.message or "").strip()
+                    if payload and payload.message
+                    else None
+                )
+                if msg:
+                    self.mascot_app.request_show_message(msg, permanent=False)
+                else:
+                    self.mascot_app.request_show_message("Mascot turned on", permanent=False)
+                return {"ok": True, "action": "show", "message": msg or "Mascot turned on"}
+            except Exception as e:
+                print("[ERROR] show_mascot:", e)
+                return {"ok": False, "action": "show", "error": str(e)}
+
+        @self.app.post("/message/hide")
+        def hide_message():
+            self.mascot_app._command_queue.put("hide_message")
+            return {"ok": True}
+
         @self.app.get("/test/popup")
         def test_popup():
             self.mascot_app.request_show_message(
-                "Test popup message!dhuiasdhigiasgdfuadsgfkdswgfjsdgfiju bsdjhvcfbuhkdsagfjhsgdfvuhohiudhgiduysfg iuih sduifguhsdg fuysdgf"
+                "Test popup message!", permanent=False
             )
             return {"ok": True, "action": "test_popup"}
 
@@ -647,10 +730,9 @@ class MascotApp(QObject):
 
         self.tray = self._create_tray_icon()
 
-        self._pending_command: str | None = None
-        self._command_lock = threading.Lock()
+        self._command_queue: queue.Queue[str] = queue.Queue()
 
-        self._pending_message: str | None = None
+        self._pending_message: tuple[str, bool] | None = None
         self._message_lock = threading.Lock()
 
         self.api = FastAPIController(self)
@@ -709,21 +791,42 @@ class MascotApp(QObject):
         tray_icon.show()
         return tray_icon
 
+    def _is_port_in_use(self, port: int) -> bool:
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            result = sock.connect_ex(("127.0.0.1", port))
+            return result == 0
+
     def _start_api_server(self) -> None:
+        preferred_port = 8000
+        if self._is_port_in_use(preferred_port):
+            print(
+                f"[WARNING] Port {preferred_port} is already in use. API server will not start."
+            )
+            print(
+                "Please close the other service or restart this app. The mascot UI will still run, but extension API calls will fail until port 8000 is free."
+            )
+            self.api_thread = None
+            return
+
         config = uvicorn.Config(
             self.api.app,
             host="127.0.0.1",
-            port=8000,
+            port=preferred_port,
             log_level="info",
         )
         server = uvicorn.Server(config)
 
         def run_server():
-            server.run()
-            # Only post if animation has been initialised
-            if hasattr(self, "animation"):
-                with self._command_lock:
-                    self._pending_command = "server_down"
+            try:
+                server.run()
+            except Exception as e:
+                print(f"[ERROR] FastAPI server thread failed: {e}")
+            finally:
+                if hasattr(self, "animation"):
+                    self._command_queue.put("server_down")
 
         self.api_thread = threading.Thread(
             target=run_server,
@@ -733,20 +836,17 @@ class MascotApp(QObject):
         self.api_thread.start()
 
     def request_toggle(self) -> None:
-        with self._command_lock:
-            self._pending_command = "toggle"
+        self._command_queue.put("toggle")
 
     def request_angry(self) -> None:
-        with self._command_lock:
-            self._pending_command = "make_angry"
+        self._command_queue.put("make_angry")
 
     def request_set_named_image(self, image_name: str) -> None:
-        with self._command_lock:
-            self._pending_command = image_name
+        self._command_queue.put(image_name)
 
-    def request_show_message(self, message: str) -> None:
+    def request_show_message(self, message: str, permanent: bool = False) -> None:
         with self._message_lock:
-            self._pending_message = message
+            self._pending_message = (message, permanent)
 
     def toggle_voice(self) -> None:
         with self._voice_lock:
@@ -757,34 +857,40 @@ class MascotApp(QObject):
             return self.voice_enabled
 
     def toggle_animation_version(self, checked: bool) -> None:
-        with self._command_lock:
-            self._pending_command = "anim_v1" if checked else "anim_v2"
+        self._command_queue.put("anim_v1" if checked else "anim_v2")
 
     def _process_pending_command(self) -> None:
-        cmd = None
-        with self._command_lock:
-            if self._pending_command is not None:
-                cmd = self._pending_command
-                self._pending_command = None
+        while not self._command_queue.empty():
+            try:
+                cmd = self._command_queue.get_nowait()
+            except queue.Empty:
+                break
 
-        if cmd == "default":
-            if self.is_angry:
-                self.get_calm()
-        elif cmd == "teeth":
-            self.get_angry()
-        elif cmd == "make_angry":
-            self.get_angry()
-        elif cmd == "server_down":
-            self.command_timer.stop()
-            self.animation.deactivate()
-        elif cmd == "anim_v1":
-            self.animation_mode = AnimationMode.V1
-            self.animation.set_mode(self.animation_mode)
-            self._save_version("v1")
-        elif cmd == "anim_v2":
-            self.animation_mode = AnimationMode.V2
-            self.animation.set_mode(self.animation_mode)
-            self._save_version("v2")
+            if cmd == "default":
+                if self.is_angry:
+                    self.get_calm()
+            elif cmd == "teeth":
+                self.get_angry()
+            elif cmd == "make_angry":
+                self.get_angry()
+            elif cmd == "server_down":
+                self.command_timer.stop()
+                self.animation.deactivate()
+            elif cmd == "anim_v1":
+                self.animation_mode = AnimationMode.V1
+                self.animation.set_mode(self.animation_mode)
+                self._save_version("v1")
+            elif cmd == "anim_v2":
+                self.animation_mode = AnimationMode.V2
+                self.animation.set_mode(self.animation_mode)
+                self._save_version("v2")
+            elif cmd == "show":
+                self.window.show()
+            elif cmd == "hide":
+                self.window.hide()
+            elif cmd == "hide_message":
+                self.message_popup.hide()
+                self.message_popup.timer.stop()
 
         msg = None
         with self._message_lock:
@@ -793,8 +899,10 @@ class MascotApp(QObject):
                 self._pending_message = None
 
         if msg is not None:
-            self.message_popup.show_message(msg)
-    
+            message, permanent = msg
+            duration = 999_999_999 if permanent else 4500
+            self.message_popup.show_message(message, duration_ms=duration)
+
     def _save_version(self, version: str):
         try:
             with open(CONFIG_PATH, "w") as f:
@@ -807,7 +915,6 @@ class MascotApp(QObject):
         self.animation.go_mad()
 
     def get_calm(self) -> None:
-        # Added to prevent thread errors
         if not self.is_angry:
             return
         self.is_angry = False

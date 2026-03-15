@@ -1,278 +1,311 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
 
-    body {
-      width: 300px;
-      font-family: "Press Start 2P", monospace;
-      padding: 0 4px 4px 0;
-      margin: 0;
-    }
+      body {
+        width: 300px;
+        font-family: "Press Start 2P", monospace;
+        padding: 0 4px 4px 0;
+        margin: 0;
+      }
 
-    .root {
-      background: #0a1a0a;
-      border: 2px solid #6fe41050;
-      image-rendering: pixelated;
-      box-shadow: 4px 4px 0 #173404;
-    }
+      .root {
+        background: #0a1a0a;
+        border: 2px solid #6fe41050;
+        image-rendering: pixelated;
+        box-shadow: 4px 4px 0 #173404;
+      }
 
-    header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: #6fe41050;
-      border-bottom: 2px solid #6fe41050;
-      padding: 16px;
-    }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #6fe41050;
+        border-bottom: 2px solid #6fe41050;
+        padding: 16px;
+      }
 
-    .header-icon {
-      width: 16px; height: 16px;
-      background: #6fe410;
-      box-shadow: 2px 0 0 #6fe410, 0 2px 0 #6fe410, -2px 0 0 #0a1a0a, 0 -2px 0 #0a1a0a;
-      flex-shrink: 0;
-    }
+      .header-icon {
+        width: 16px;
+        height: 16px;
+        background: #6fe410;
+        box-shadow:
+          2px 0 0 #6fe410,
+          0 2px 0 #6fe410,
+          -2px 0 0 #0a1a0a,
+          0 -2px 0 #0a1a0a;
+        flex-shrink: 0;
+      }
 
-    .header-title {
-      font-size: 8px;
-      color: #6fe410;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
+      .header-title {
+        font-size: 8px;
+        color: #6fe410;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
 
-    main {
-      padding: 16px;
-    }
+      main {
+        padding: 16px;
+      }
 
-    .input-label {
-      font-size: 8px;
-      color: #6fe410;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-      display: block;
-    }
+      .input-label {
+        font-size: 8px;
+        color: #6fe410;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        display: block;
+      }
 
-    .input-group {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 12px;
-    }
+      .input-group {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
 
-    #domainInput {
-      flex: 1;
-      background: #0f2a0f;
-      border: 2px solid #6fe41050;
-      color: #6fe410;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 8px;
-      padding: 7px 8px;
-      outline: none;
-      box-shadow: inset 2px 2px 0 #04100a;
-    }
+      #domainInput {
+        flex: 1;
+        background: #0f2a0f;
+        border: 2px solid #6fe41050;
+        color: #6fe410;
+        font-family: "Press Start 2P", monospace;
+        font-size: 8px;
+        padding: 7px 8px;
+        outline: none;
+        box-shadow: inset 2px 2px 0 #04100a;
+      }
 
-    #domainInput::placeholder { color: #6fe41050; }
+      #domainInput::placeholder {
+        color: #6fe41050;
+      }
 
-    #addBtn {
-      background: #6fe41069;
-      border: 2px solid #6fe41050;
-      color: #C0DD97;
-      font-family: "Press Start 2P", monospace;
-      font-size: 8px;
-      padding: 7px 10px;
-      cursor: pointer;
-      box-shadow: 2px 2px 0 #0a1a0a;
-      white-space: nowrap;
-      transition: none;
-    }
+      #addBtn {
+        background: #6fe41069;
+        border: 2px solid #6fe41050;
+        color: #c0dd97;
+        font-family: "Press Start 2P", monospace;
+        font-size: 8px;
+        padding: 7px 10px;
+        cursor: pointer;
+        box-shadow: 2px 2px 0 #0a1a0a;
+        white-space: nowrap;
+        transition: none;
+      }
 
-    #addBtn:hover { background: #6fe41050; color: #eaf3de; }
-    #addBtn:active { box-shadow: none; transform: translate(2px,2px); }
+      #addBtn:hover {
+        background: #6fe41050;
+        color: #eaf3de;
+      }
+      #addBtn:active {
+        box-shadow: none;
+        transform: translate(2px, 2px);
+      }
 
-    .divider {
-      border: none;
-      border-top: 2px solid #6fe41050;
-      margin: 10px 0;
-    }
+      .divider {
+        border: none;
+        border-top: 2px solid #6fe41050;
+        margin: 10px 0;
+      }
 
-    .file-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
+      .file-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
 
-    .file-input-label {
-      background: #0f2a0f;
-      border: 2px solid #6fe41050;
-      color: #6fe410;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 6px;
-      padding: 7px 8px;
-      cursor: pointer;
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+      .file-input-label {
+        background: #0f2a0f;
+        border: 2px solid #6fe41050;
+        color: #6fe410;
+        font-family: "Press Start 2P", monospace;
+        font-size: 6px;
+        padding: 7px 8px;
+        cursor: pointer;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
 
-    .file-input-label input { display: none; }
-    
-    .file-icon {
-      width: 10px; height: 12px;
-      background: #27500a;
-      border: 1px solid #6fe410;
-      position: relative;
-      flex-shrink: 0;
-    }
-    
-    .file-icon::after {
-      content: '';
-      position: absolute;
-      top: 0; right: 0;
-      width: 4px; height: 4px;
-      background: #0a1a0a;
-      border-bottom: 1px solid #6fe410;
-      border-left: 1px solid #6fe410;
-    }
-    
-    .domain-list {
-      border: 2px solid #173404;
-      background: #06120a;
-      min-height: 60px;
-      max-height: 120px;
-      overflow-y: auto;
-    }
-    
-    .domain-list::-webkit-scrollbar { width: 6px; }
-    .domain-list::-webkit-scrollbar-track { background: #0a1a0a; }
-    .domain-list::-webkit-scrollbar-thumb { background: #6fe410; }
-    
-    .domain-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 8px;
-      border-bottom: 1px solid #6fe410;
-      font-size: 6px;
-    }
-    
-    .domain-item:last-child { border-bottom: none; }
-    
-    .domain-name { color: #6fe410; }
-    
-    .remove-btn {
-      background: #27100a;
-      border: 1px solid #633806;
-      color: #EF9F27;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 6px;
-      padding: 4px;
-      cursor: pointer;
-      box-shadow: 1px 1px 0 #412402;
-    }
-    
-    .remove-btn:hover { background: #633806; }
-    
-    .remove-btn:active { box-shadow: none; transform: translate(1px,1px); }
-    
-    .empty-domain-msg {
-      color: #27500a;
-      font-size: 6px;
-      text-align: center;
-      padding: 16px 8px;
-      line-height: 2;
-    }
+      .file-input-label input {
+        display: none;
+      }
 
-    .avatar-toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 4px;
-    }
+      .file-icon {
+        width: 10px;
+        height: 12px;
+        background: #27500a;
+        border: 1px solid #6fe410;
+        position: relative;
+        flex-shrink: 0;
+      }
 
-    .avatar-label {
-      font-size: 8px;
-      color: #6fe41050;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      transition: color 0.1s;
-    }
+      .file-icon::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 4px;
+        background: #0a1a0a;
+        border-bottom: 1px solid #6fe410;
+        border-left: 1px solid #6fe410;
+      }
 
-    .avatar-label.active {
-      color: #6fe410;
-    }
+      .domain-list {
+        border: 2px solid #173404;
+        background: #06120a;
+        min-height: 60px;
+        max-height: 120px;
+        overflow-y: auto;
+      }
 
-    .pixel-toggle {
-      position: relative;
-      width: 52px;
-      height: 20px;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
+      .domain-list::-webkit-scrollbar {
+        width: 6px;
+      }
+      .domain-list::-webkit-scrollbar-track {
+        background: #0a1a0a;
+      }
+      .domain-list::-webkit-scrollbar-thumb {
+        background: #6fe410;
+      }
 
-    .pixel-toggle input {
-      display: none;
-    }
+      .domain-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 8px;
+        border-bottom: 1px solid #6fe410;
+        font-size: 6px;
+      }
 
-    .pixel-track {
-      position: absolute;
-      inset: 0;
-      background: #06120a;
-      border: 2px solid #6fe41050;
-      box-shadow: inset 2px 2px 0 #04100a;
-    }
+      .domain-item:last-child {
+        border-bottom: none;
+      }
 
-    .pixel-thumb {
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 12px;
-      background: #6fe410;
-      box-shadow: 2px 2px 0 #173404;
-      transition: left 0.1s steps(4);
-    }
+      .domain-name {
+        color: #6fe410;
+      }
 
-    .pixel-toggle input:checked ~ .pixel-track .pixel-thumb {
-      left: 26px;
-    }
+      .remove-btn {
+        background: #27100a;
+        border: 1px solid #633806;
+        color: #ef9f27;
+        font-family: "Press Start 2P", monospace;
+        font-size: 6px;
+        padding: 4px;
+        cursor: pointer;
+        box-shadow: 1px 1px 0 #412402;
+      }
 
-    .avatar-tabs {
-      display: flex;
-      gap: 0;
-      margin-bottom: 4px;
-    }
+      .remove-btn:hover {
+        background: #633806;
+      }
 
-    .avatar-tab {
-      flex: 1;
-      background: #06120a;
-      border: 2px solid #6fe41050;
-      color: #6fe41080;
-      font-size: 8px;
-      padding: 8px 0;
-      text-align: center;
-      cursor: pointer;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      box-shadow: 2px 2px 0 #0a1a0a;
-    }
+      .remove-btn:active {
+        box-shadow: none;
+        transform: translate(1px, 1px);
+      }
 
-    .avatar-tab:hover {
-      color: #6fe410;
-      background: #0f2a0f;
-    }
+      .empty-domain-msg {
+        color: #27500a;
+        font-size: 6px;
+        text-align: center;
+        padding: 16px 8px;
+        line-height: 2;
+      }
 
-    .avatar-tab.active {
-      background: #6fe41020;
-      border-color: #6fe410;
-      color: #6fe410;
-    }
+      .avatar-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
 
-    .blink { animation: blink 1s step-end infinite; }
-    @keyframes blink { 50% { opacity: 0; } }
+      .avatar-label {
+        font-size: 8px;
+        color: #6fe41050;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        transition: color 0.1s;
+      }
+
+      .avatar-label.active {
+        color: #6fe410;
+      }
+
+      .pixel-toggle {
+        position: relative;
+        width: 52px;
+        height: 20px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .pixel-toggle input {
+        display: none;
+      }
+
+      .pixel-track {
+        position: absolute;
+        inset: 0;
+        background: #06120a;
+        border: 2px solid #6fe41050;
+        box-shadow: inset 2px 2px 0 #04100a;
+      }
+
+      .pixel-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 12px;
+        background: #6fe410;
+        box-shadow: 2px 2px 0 #173404;
+        transition: left 0.1s steps(4);
+      }
+
+      .pixel-toggle input:checked ~ .pixel-track .pixel-thumb {
+        left: 26px;
+      }
+
+      .avatar-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 8px;
+      }
+
+      .avatar-tab {
+        flex: 1;
+        background: #06120a;
+        border: 2px solid #6fe41050;
+        color: #6fe41080;
+        font-size: 8px;
+        padding: 8px 0;
+        text-align: center;
+        cursor: pointer;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        box-shadow: 2px 2px 0 #0a1a0a;
+      }
+
+      .avatar-tab:hover {
+        color: #6fe410;
+        background: #0f2a0f;
+      }
+
+      .avatar-tab.active {
+        background: #6fe41020;
+        border-color: #6fe410;
+        color: #6fe410;
+      }
+
+      .blink { animation: blink 1s step-end infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
   </style>
 </head>
 
@@ -300,6 +333,45 @@
           <input type="file" id="icsFileInput" accept=".ics">
        </label>
       </div>
+
+      <div
+        id="nextEventLabel"
+        style="
+          margin-top: 8px;
+          border: 2px solid #6fe41030;
+          background: #06120a;
+          padding: 8px;
+        "
+      >
+        <div
+          style="
+            font-size: 6px;
+            color: #6fe41080;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+          "
+        >
+          NEXT EVENT
+        </div>
+        <div
+          id="nextEventTitle"
+          style="font-size: 7px; color: #6fe410; margin-bottom: 8px"
+        >
+          —
+        </div>
+        <div
+          id="nextEventTime"
+          style="font-size: 6px; color: #6fe41080; line-height: 2"
+        >
+          No event loaded.
+        </div>
+      </div>
+      <div
+        id="mascotStatus"
+        style="font-size: 8px; margin-top: 6px; color: #ff7f7f"
+      >
+        Mascot is OFF
+      </div>
     
       <hr class="divider">
     
@@ -313,9 +385,41 @@
         <div class="avatar-tab" id="tabV1">V1</div>
         <div class="avatar-tab" id="tabV2">V2</div>
       </div>
+
+      <div style="display: flex; gap: 6px">
+        <button
+          id="turnOnBtn"
+          style="
+            flex: 1;
+            background: #2a9a29;
+            color: #fff;
+            border: none;
+            padding: 8px;
+            font-size: 8px;
+            font-family: &quot;Press Start 2P&quot;, monospace;
+            cursor: pointer;
+          "
+        >
+          Turn on mascot
+        </button>
+        <button
+          id="turnOffBtn"
+          style="
+            flex: 1;
+            background: #a12929;
+            color: #fff;
+            border: none;
+            padding: 8px;
+            font-size: 8px;
+            font-family: &quot;Press Start 2P&quot;, monospace;
+            cursor: pointer;
+          "
+        >
+          Turn off mascot
+        </button>
+      </div>
     </main>
   </div>
   <script src="popup.js"></script>
 </body>
 
-</html>
