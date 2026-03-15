@@ -318,4 +318,34 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   loadDomains();
+
+  // Avatar tab switching
+  const tabV1 = document.getElementById("tabV1");
+  const tabV2 = document.getElementById("tabV2");
+
+  function setActiveTab(version) {
+    tabV1.classList.toggle("active", version === "v1");
+    tabV2.classList.toggle("active", version === "v2");
+    fetch("http://localhost:8000/avatar/set", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version }),
+    }).catch(() => {});
+  }
+
+  // Load saved version, default to v2
+  chrome.storage.local.get("avatarVersion", function (result) {
+    const version = result.avatarVersion || "v2";
+    setActiveTab(version);
+  });
+
+  tabV1.addEventListener("click", function () {
+    chrome.storage.local.set({ avatarVersion: "v1" });
+    setActiveTab("v1");
+  });
+
+  tabV2.addEventListener("click", function () {
+    chrome.storage.local.set({ avatarVersion: "v2" });
+    setActiveTab("v2");
+  });
 });
