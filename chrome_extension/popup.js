@@ -147,44 +147,33 @@ document.addEventListener("DOMContentLoaded", function () {
 
   loadDomains();
 
+  // Avatar tab switching
   const tabV1 = document.getElementById("tabV1");
   const tabV2 = document.getElementById("tabV2");
 
-  async function sendAvatarRequest(version) {
-    try {
-      await fetch("http://localhost:8000/avatar/set", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version }),
-      });
-    } catch (error) {
-      console.error("Failed to send avatar request:", error);
-    }
+  function setActiveTab(version) {
+    tabV1.classList.toggle("active", version === "v1");
+    tabV2.classList.toggle("active", version === "v2");
+    fetch("http://localhost:8000/avatar/set", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version }),
+    }).catch(() => {});
   }
 
-  // Restore saved state on popup open
-  chrome.storage.local.get("avatarVersion", ({ avatarVersion }) => {
-    if (avatarVersion === "v1") {
-      tabV1.classList.add("active");
-      tabV2.classList.remove("active");
-    } else if (avatarVersion === "v2") {
-      tabV2.classList.add("active");
-      tabV1.classList.remove("active");
-    }
+  // Load saved version, default to v2
+  chrome.storage.local.get("avatarVersion", function (result) {
+    const version = result.avatarVersion || "v2";
+    setActiveTab(version);
   });
 
-  tabV1.addEventListener("click", () => {
-    tabV1.classList.add("active");
-    tabV2.classList.remove("active");
+  tabV1.addEventListener("click", function () {
     chrome.storage.local.set({ avatarVersion: "v1" });
-    sendAvatarRequest("v1");
+    setActiveTab("v1");
   });
 
-  tabV2.addEventListener("click", () => {
-    tabV2.classList.add("active");
-    tabV1.classList.remove("active");
+  tabV2.addEventListener("click", function () {
     chrome.storage.local.set({ avatarVersion: "v2" });
-    sendAvatarRequest("v2");
+    setActiveTab("v2");
   });
-
 });

@@ -13,6 +13,7 @@ const defaultDomains = [
   "youtube.com",
   "twitch.tv",
 ];
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get("defaultDomains", function (result) {
     if (!result.defaultDomains) {

@@ -1,6 +1,7 @@
 import queue
 import sys
 import threading
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntFlag, auto
@@ -27,6 +28,8 @@ from PySide6.QtWidgets import (
     QSystemTrayIcon,
     QWidget,
 )
+
+CONFIG_PATH = Path(__file__).parent / "config.json"
 
 try:
     from ai_inference import ensure_model_exists, generateAndPlaySound, getMessage
@@ -631,7 +634,7 @@ class MascotApp(QObject):
         self.app_icon = self.base_dir / "mascot_logo.png"
         self.default_image = self.base_dir / "mascot/v2/default_1.png"
         self.is_angry = False
-        self.animation_mode = AnimationMode.V2
+        self.animation_mode = self._load_saved_version()
 
         self.window = MascotWindow(str(self.default_image))
         self.window.resize(200, 200)
@@ -656,6 +659,15 @@ class MascotApp(QObject):
         self.command_timer = QTimer(self.window)
         self.command_timer.timeout.connect(self._process_pending_command)
         self.command_timer.start(100)
+
+    def _load_saved_version(self):
+        try:
+            with open(CONFIG_PATH) as f:
+                data = json.load(f)
+                return AnimationMode.V1 if data.get("avatarVersion") == "v1" else AnimationMode.V2
+        except (FileNotFoundError, json.JSONDecodeError):
+            self._save_version("v2")
+            return AnimationMode.V2
 
     def _position_window(self) -> None:
         screen = QGuiApplication.primaryScreen()
@@ -768,9 +780,11 @@ class MascotApp(QObject):
         elif cmd == "anim_v1":
             self.animation_mode = AnimationMode.V1
             self.animation.set_mode(self.animation_mode)
+            self._save_version("v1")
         elif cmd == "anim_v2":
             self.animation_mode = AnimationMode.V2
             self.animation.set_mode(self.animation_mode)
+            self._save_version("v2")
 
         msg = None
         with self._message_lock:
@@ -780,6 +794,13 @@ class MascotApp(QObject):
 
         if msg is not None:
             self.message_popup.show_message(msg)
+    
+    def _save_version(self, version: str):
+        try:
+            with open(CONFIG_PATH, "w") as f:
+                json.dump({ "avatarVersion": version }, f)
+        except OSError as e:
+            print(f"Failed to save config: {e}")
 
     def get_angry(self) -> None:
         self.is_angry = True

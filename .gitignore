@@ -4,3 +4,4 @@ output_custom_voice.wav
 */build/
 */dist/
 *.zip
+desktop/config.json
